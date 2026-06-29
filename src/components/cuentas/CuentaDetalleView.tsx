@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { formatMXN, toCentavos } from "@/lib/money";
 
@@ -30,8 +30,10 @@ interface LedgerRow {
 
 const inputCls =
   "w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-antara";
+const filterCls =
+  "rounded-lg border border-line bg-paper px-3 py-1.5 text-sm text-ink outline-none focus:border-antara";
 const btnPrimary =
-  "rounded-lg bg-antara px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-antara-dark disabled:opacity-60";
+  "cursor-pointer rounded-lg bg-antara px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-antara-dark disabled:opacity-60 disabled:cursor-not-allowed";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -124,7 +126,7 @@ function VentaRapidaForm({
         <button
           type="button"
           onClick={agregar}
-          className="rounded-lg border border-antara px-4 py-2 text-sm font-medium text-antara hover:bg-antara/5"
+          className="cursor-pointer rounded-lg border border-antara px-4 py-2 text-sm font-medium text-antara hover:bg-antara/5"
         >
           Agregar
         </button>
@@ -267,6 +269,31 @@ export function CuentaDetalleView({
 }) {
   const [panel, setPanel] = useState<"venta" | "abono" | null>(null);
 
+  // Filtros del ledger
+  const [filtroTipo, setFiltroTipo] = useState("");
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+
+  const hayFiltros = filtroTipo || fechaDesde || fechaHasta;
+
+  const ledgerFiltrado = useMemo(() => {
+    return ledger.filter((row) => {
+      if (filtroTipo && row.tipo !== filtroTipo) return false;
+      if (fechaDesde || fechaHasta) {
+        const rowFecha = new Date(row.fecha).toLocaleDateString("en-CA");
+        if (fechaDesde && rowFecha < fechaDesde) return false;
+        if (fechaHasta && rowFecha > fechaHasta) return false;
+      }
+      return true;
+    });
+  }, [ledger, filtroTipo, fechaDesde, fechaHasta]);
+
+  function limpiarFiltros() {
+    setFiltroTipo("");
+    setFechaDesde("");
+    setFechaHasta("");
+  }
+
   function togglePanel(p: "venta" | "abono") {
     setPanel((prev) => (prev === p ? null : p));
   }
@@ -317,7 +344,7 @@ export function CuentaDetalleView({
         <button
           type="button"
           onClick={() => togglePanel("venta")}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+          className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
             panel === "venta"
               ? "bg-antara-dark text-white"
               : "bg-antara text-white hover:bg-antara-dark"
@@ -328,7 +355,7 @@ export function CuentaDetalleView({
         <button
           type="button"
           onClick={() => togglePanel("abono")}
-          className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+          className={`cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
             panel === "abono"
               ? "border-paid bg-paid/5 text-paid"
               : "border-paid text-paid hover:bg-paid/5"
@@ -361,55 +388,102 @@ export function CuentaDetalleView({
           <p className="text-sm text-ink/60">Sin movimientos en esta cuenta todavía.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-line bg-white">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink/50">
-                <th className="px-4 py-3 font-medium">Fecha</th>
-                <th className="px-4 py-3 font-medium">Concepto</th>
-                <th className="px-4 py-3 text-right font-medium">Cargo</th>
-                <th className="px-4 py-3 text-right font-medium">Abono</th>
-                <th className="px-4 py-3 text-right font-medium">Saldo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ledger.map((row) => (
-                <tr key={row.id} className="border-b border-line last:border-0">
-                  <td className="whitespace-nowrap px-4 py-3 text-ink/70">
-                    {new Date(row.fecha).toLocaleDateString("es-MX", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </td>
-                  <td className="px-4 py-3 text-ink">
-                    {descMovimiento(row)}
-                    {row.nota && (
-                      <span className="ml-2 text-xs text-ink/40">· {row.nota}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-debt">
-                    {row.tipo === "cargo" ? formatMXN(row.monto) : ""}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-paid">
-                    {row.tipo === "abono" ? formatMXN(row.monto) : ""}
-                  </td>
-                  <td
-                    className={`px-4 py-3 text-right font-medium tabular-nums ${
-                      row.saldoCorriente > 0
-                        ? "text-debt"
-                        : row.saldoCorriente < 0
-                        ? "text-paid"
-                        : "text-ink/40"
-                    }`}
-                  >
-                    {formatMXN(row.saldoCorriente)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* Barra de filtros del ledger */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <select
+              value={filtroTipo}
+              onChange={(e) => setFiltroTipo(e.target.value)}
+              className={filterCls}
+            >
+              <option value="">Todos los movimientos</option>
+              <option value="cargo">Solo cargos</option>
+              <option value="abono">Solo abonos</option>
+            </select>
+            <input
+              type="date"
+              value={fechaDesde}
+              onChange={(e) => setFechaDesde(e.target.value)}
+              title="Desde"
+              className={filterCls}
+            />
+            <input
+              type="date"
+              value={fechaHasta}
+              onChange={(e) => setFechaHasta(e.target.value)}
+              title="Hasta"
+              className={filterCls}
+            />
+            {hayFiltros && (
+              <button
+                type="button"
+                onClick={limpiarFiltros}
+                className="text-xs text-ink/40 hover:text-debt"
+              >
+                Limpiar
+              </button>
+            )}
+            <span className="ml-auto text-xs text-ink/40">
+              {ledgerFiltrado.length} de {ledger.length}
+            </span>
+          </div>
+
+          {ledgerFiltrado.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-line bg-white p-10 text-center">
+              <p className="text-sm text-ink/60">Sin resultados para los filtros aplicados.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-line bg-white">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink/50">
+                    <th className="px-4 py-3 font-medium">Fecha</th>
+                    <th className="px-4 py-3 font-medium">Concepto</th>
+                    <th className="px-4 py-3 text-right font-medium">Cargo</th>
+                    <th className="px-4 py-3 text-right font-medium">Abono</th>
+                    <th className="px-4 py-3 text-right font-medium">Saldo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ledgerFiltrado.map((row) => (
+                    <tr key={row.id} className="border-b border-line last:border-0">
+                      <td className="whitespace-nowrap px-4 py-3 text-ink/70">
+                        {new Date(row.fecha).toLocaleDateString("es-MX", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </td>
+                      <td className="px-4 py-3 text-ink">
+                        {descMovimiento(row)}
+                        {row.nota && (
+                          <span className="ml-2 text-xs text-ink/40">· {row.nota}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-debt">
+                        {row.tipo === "cargo" ? formatMXN(row.monto) : ""}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-paid">
+                        {row.tipo === "abono" ? formatMXN(row.monto) : ""}
+                      </td>
+                      <td
+                        className={`px-4 py-3 text-right font-medium tabular-nums ${
+                          row.saldoCorriente > 0
+                            ? "text-debt"
+                            : row.saldoCorriente < 0
+                            ? "text-paid"
+                            : "text-ink/40"
+                        }`}
+                      >
+                        {formatMXN(row.saldoCorriente)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </>
   );

@@ -63,7 +63,7 @@ export function Sidebar() {
         {brand}
         <button
           onClick={() => setOpen((v) => !v)}
-          className="rounded-md p-2"
+          className="cursor-pointer rounded-md p-2"
           aria-label="Abrir menú"
           aria-expanded={open}
         >

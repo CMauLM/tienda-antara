@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { formatMXN, toCentavos } from "@/lib/money";
 
@@ -19,8 +19,10 @@ interface MovRow {
 
 const inputCls =
   "w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-antara";
+const filterCls =
+  "rounded-lg border border-line bg-paper px-3 py-1.5 text-sm text-ink outline-none focus:border-antara";
 const btnPrimary =
-  "rounded-lg bg-antara px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-antara-dark disabled:opacity-60";
+  "cursor-pointer rounded-lg bg-antara px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-antara-dark disabled:opacity-60 disabled:cursor-not-allowed";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -118,7 +120,7 @@ function VentaForm({ cuentas, articulos }: { cuentas: CuentaOpt[]; articulos: Ar
         <button
           type="button"
           onClick={agregar}
-          className="rounded-lg border border-antara px-4 py-2 text-sm font-medium text-antara hover:bg-antara/5"
+          className="cursor-pointer rounded-lg border border-antara px-4 py-2 text-sm font-medium text-antara hover:bg-antara/5"
         >
           Agregar
         </button>
@@ -249,11 +251,39 @@ function AbonoForm({ cuentas }: { cuentas: CuentaOpt[] }) {
   );
 }
 
-// ---------- Lista con botón Anular ----------
+// ---------- Lista con filtros y botón Anular ----------
 function MovimientosList({ movimientos }: { movimientos: MovRow[] }) {
   const router = useRouter();
   const [anulando, setAnulando] = useState<string | null>(null);
   const [anularError, setAnularError] = useState<string | null>(null);
+
+  // Filtros
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState("");
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+
+  const hayFiltros = busqueda || filtroTipo || fechaDesde || fechaHasta;
+
+  const filtradas = useMemo(() => {
+    return movimientos.filter((m) => {
+      if (busqueda && !m.cuentaNombre.toLowerCase().includes(busqueda.toLowerCase())) return false;
+      if (filtroTipo && m.tipo !== filtroTipo) return false;
+      if (fechaDesde || fechaHasta) {
+        const movFecha = new Date(m.fecha).toLocaleDateString("en-CA");
+        if (fechaDesde && movFecha < fechaDesde) return false;
+        if (fechaHasta && movFecha > fechaHasta) return false;
+      }
+      return true;
+    });
+  }, [movimientos, busqueda, filtroTipo, fechaDesde, fechaHasta]);
+
+  function limpiarFiltros() {
+    setBusqueda("");
+    setFiltroTipo("");
+    setFechaDesde("");
+    setFechaHasta("");
+  }
 
   async function anular(m: MovRow) {
     if (!confirm(`¿Anular este movimiento de ${m.tipo === "cargo" ? "cargo" : "abono"} por ${formatMXN(m.monto)}?`)) return;
@@ -286,73 +316,126 @@ function MovimientosList({ movimientos }: { movimientos: MovRow[] }) {
   return (
     <>
       {anularError && <p className="mb-3 text-sm text-debt">{anularError}</p>}
-      <div className="overflow-x-auto rounded-xl border border-line bg-white">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink/50">
-              <th className="px-4 py-3 font-medium">Fecha</th>
-              <th className="px-4 py-3 font-medium">Cuenta</th>
-              <th className="px-4 py-3 font-medium">Tipo</th>
-              <th className="px-4 py-3 text-right font-medium">Monto</th>
-              <th className="px-4 py-3 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {movimientos.map((m) => {
-              const esCargo = m.tipo === "cargo";
-              const puedeAnular = !m.esReversa && !m.yaRevertido;
-              return (
-                <tr key={m.id} className="border-b border-line last:border-0">
-                  <td className="px-4 py-3 text-ink/70">
-                    {new Date(m.fecha).toLocaleDateString("es-MX", {
-                      day: "2-digit",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </td>
-                  <td className="px-4 py-3 font-medium text-ink">{m.cuentaNombre}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        esCargo ? "bg-debt/10 text-debt" : "bg-paid/10 text-paid"
+
+      {/* Barra de filtros */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          placeholder="Buscar cuenta…"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          className={`${filterCls} min-w-[160px] flex-1`}
+        />
+        <select
+          value={filtroTipo}
+          onChange={(e) => setFiltroTipo(e.target.value)}
+          className={filterCls}
+        >
+          <option value="">Todos los tipos</option>
+          <option value="cargo">Cargo</option>
+          <option value="abono">Abono</option>
+        </select>
+        <input
+          type="date"
+          value={fechaDesde}
+          onChange={(e) => setFechaDesde(e.target.value)}
+          title="Desde"
+          className={filterCls}
+        />
+        <input
+          type="date"
+          value={fechaHasta}
+          onChange={(e) => setFechaHasta(e.target.value)}
+          title="Hasta"
+          className={filterCls}
+        />
+        {hayFiltros && (
+          <button
+            type="button"
+            onClick={limpiarFiltros}
+            className="text-xs text-ink/40 hover:text-debt"
+          >
+            Limpiar
+          </button>
+        )}
+        <span className="ml-auto text-xs text-ink/40">
+          {filtradas.length} de {movimientos.length}
+        </span>
+      </div>
+
+      {filtradas.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-line bg-white p-10 text-center">
+          <p className="text-sm text-ink/60">Sin resultados para los filtros aplicados.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-line bg-white">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink/50">
+                <th className="px-4 py-3 font-medium">Fecha</th>
+                <th className="px-4 py-3 font-medium">Cuenta</th>
+                <th className="px-4 py-3 font-medium">Tipo</th>
+                <th className="px-4 py-3 text-right font-medium">Monto</th>
+                <th className="px-4 py-3 font-medium"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtradas.map((m) => {
+                const esCargo = m.tipo === "cargo";
+                const puedeAnular = !m.esReversa && !m.yaRevertido;
+                return (
+                  <tr key={m.id} className="border-b border-line last:border-0">
+                    <td className="px-4 py-3 text-ink/70">
+                      {new Date(m.fecha).toLocaleDateString("es-MX", {
+                        day: "2-digit",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-ink">{m.cuentaNombre}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          esCargo ? "bg-debt/10 text-debt" : "bg-paid/10 text-paid"
+                        }`}
+                      >
+                        {esCargo ? "Cargo" : "Abono"}
+                      </span>
+                      {m.esReversa && (
+                        <span className="ml-2 text-xs text-ink/40">reversa</span>
+                      )}
+                    </td>
+                    <td
+                      className={`px-4 py-3 text-right font-medium tabular-nums ${
+                        esCargo ? "text-debt" : "text-paid"
                       }`}
                     >
-                      {esCargo ? "Cargo" : "Abono"}
-                    </span>
-                    {m.esReversa && (
-                      <span className="ml-2 text-xs text-ink/40">reversa</span>
-                    )}
-                  </td>
-                  <td
-                    className={`px-4 py-3 text-right font-medium tabular-nums ${
-                      esCargo ? "text-debt" : "text-paid"
-                    }`}
-                  >
-                    {esCargo ? "+" : "−"}{formatMXN(m.monto)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {puedeAnular ? (
-                      <button
-                        type="button"
-                        onClick={() => anular(m)}
-                        disabled={anulando === m.id}
-                        className="rounded-md border border-debt/40 px-2 py-1 text-xs font-medium text-debt transition-colors hover:bg-debt/5 disabled:opacity-50"
-                      >
-                        {anulando === m.id ? "Anulando…" : "Anular"}
-                      </button>
-                    ) : (
-                      <span className="text-xs text-ink/30">
-                        {m.yaRevertido ? "Anulado" : "—"}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                      {esCargo ? "+" : "−"}{formatMXN(m.monto)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {puedeAnular ? (
+                        <button
+                          type="button"
+                          onClick={() => anular(m)}
+                          disabled={anulando === m.id}
+                          className="cursor-pointer rounded-md border border-debt/40 px-2 py-1 text-xs font-medium text-debt transition-colors hover:bg-debt/5 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {anulando === m.id ? "Anulando…" : "Anular"}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-ink/30">
+                          {m.yaRevertido ? "Anulado" : "—"}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 }
@@ -376,7 +459,7 @@ export function MovimientosView({
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+            className={`cursor-pointer rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
               tab === t ? "bg-antara text-white" : "text-ink/60 hover:text-ink"
             }`}
           >

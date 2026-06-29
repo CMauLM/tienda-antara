@@ -22,3 +22,12 @@ body {
   outline: 2px solid var(--color-antara);
   outline-offset: 2px;
 }
+
+@layer base {
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
