@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { formatMXN, toCentavos } from "@/lib/money";
+import { Combobox } from "@/components/ui/Combobox";
 
 interface CuentaOpt { id: string; nombre: string }
 interface ArticuloOpt { id: string; nombre: string; precio: number }
@@ -46,7 +47,23 @@ function VentaForm({ cuentas, articulos }: { cuentas: CuentaOpt[]; articulos: Ar
   const [error, setError] = useState<string | null>(null);
 
   const art = (id: string) => articulos.find((a) => a.id === id);
+  const artSel = articuloId ? art(articuloId) : null;
   const total = lineas.reduce((s, l) => s + (art(l.articuloId)?.precio ?? 0) * l.cantidad, 0);
+
+  // Opciones para los Comboboxes
+  const cuentaOpts = useMemo(
+    () => cuentas.map((c) => ({ value: c.id, label: c.nombre })),
+    [cuentas]
+  );
+  const articuloOpts = useMemo(
+    () =>
+      articulos.map((a) => ({
+        value: a.id,
+        label: a.nombre,
+        meta: formatMXN(a.precio),
+      })),
+    [articulos]
+  );
 
   function agregar() {
     if (!articuloId || cantidad < 1) return;
@@ -88,26 +105,51 @@ function VentaForm({ cuentas, articulos }: { cuentas: CuentaOpt[]; articulos: Ar
 
   return (
     <div className="rounded-xl border border-line bg-white p-5">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Cuenta">
-          <select value={cuentaId} onChange={(e) => setCuentaId(e.target.value)} className={inputCls}>
-            <option value="">Selecciona…</option>
-            {cuentas.map((c) => (
-              <option key={c.id} value={c.id}>{c.nombre}</option>
-            ))}
-          </select>
-        </Field>
-      </div>
+      {/* Cuenta */}
+      <Field label="Cuenta">
+        <Combobox
+          options={cuentaOpts}
+          value={cuentaId}
+          onChange={setCuentaId}
+          placeholder="Escribe el nombre de la cuenta…"
+        />
+      </Field>
 
+      {/* Producto + cantidad + botón Agregar */}
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-        <Field label="Producto">
-          <select value={articuloId} onChange={(e) => setArticuloId(e.target.value)} className={inputCls}>
-            <option value="">Selecciona…</option>
-            {articulos.map((a) => (
-              <option key={a.id} value={a.id}>{a.nombre} · {formatMXN(a.precio)}</option>
-            ))}
-          </select>
-        </Field>
+        <div>
+          <Field label="Producto">
+            <Combobox
+              options={articuloOpts}
+              value={articuloId}
+              onChange={setArticuloId}
+              placeholder="Escribe el nombre del producto…"
+            />
+          </Field>
+          {/* Chip de precio + subtotal cuando hay producto seleccionado */}
+          {artSel && (
+            <p className="mt-1.5 flex items-center gap-2 text-xs text-ink/50">
+              <span>
+                Precio unitario:{" "}
+                <span className="font-medium tabular-nums text-ink/80">
+                  {formatMXN(artSel.precio)}
+                </span>
+              </span>
+              {cantidad > 1 && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span>
+                    Subtotal:{" "}
+                    <span className="font-medium tabular-nums text-ink/80">
+                      {formatMXN(artSel.precio * cantidad)}
+                    </span>
+                  </span>
+                </>
+              )}
+            </p>
+          )}
+        </div>
+
         <Field label="Cantidad">
           <input
             type="number"
@@ -117,29 +159,44 @@ function VentaForm({ cuentas, articulos }: { cuentas: CuentaOpt[]; articulos: Ar
             className={`${inputCls} w-24`}
           />
         </Field>
+
         <button
           type="button"
           onClick={agregar}
-          className="cursor-pointer rounded-lg border border-antara px-4 py-2 text-sm font-medium text-antara hover:bg-antara/5"
+          disabled={!articuloId}
+          className="cursor-pointer rounded-lg border border-antara px-4 py-2 text-sm font-medium text-antara transition-colors hover:bg-antara/5 disabled:cursor-not-allowed disabled:border-line disabled:text-ink/30"
         >
           Agregar
         </button>
       </div>
 
+      {/* Lista de productos agregados */}
       {lineas.length > 0 && (
-        <ul className="mt-4 divide-y divide-line rounded-lg border border-line">
+        <ul className="mt-4 divide-y divide-line overflow-hidden rounded-lg border border-line">
           {lineas.map((l) => {
             const a = art(l.articuloId);
             return (
-              <li key={l.articuloId} className="flex items-center justify-between px-4 py-2 text-sm">
-                <span className="text-ink">{a?.nombre} × {l.cantidad}</span>
+              <li
+                key={l.articuloId}
+                className="flex items-center justify-between px-4 py-2.5 text-sm"
+              >
+                <span className="text-ink">
+                  {a?.nombre}
+                  <span className="ml-1 text-ink/40">× {l.cantidad}</span>
+                </span>
                 <span className="flex items-center gap-3">
-                  <span className="tabular-nums text-ink/70">{formatMXN((a?.precio ?? 0) * l.cantidad)}</span>
+                  <span className="tabular-nums text-ink/70">
+                    {formatMXN((a?.precio ?? 0) * l.cantidad)}
+                  </span>
                   <button
                     type="button"
-                    onClick={() => setLineas((p) => p.filter((x) => x.articuloId !== l.articuloId))}
-                    className="text-debt hover:underline"
-                    aria-label="Quitar"
+                    onClick={() =>
+                      setLineas((p) =>
+                        p.filter((x) => x.articuloId !== l.articuloId)
+                      )
+                    }
+                    className="cursor-pointer text-ink/30 transition-colors hover:text-debt"
+                    aria-label={`Quitar ${a?.nombre}`}
                   >
                     ✕
                   </button>
@@ -147,7 +204,7 @@ function VentaForm({ cuentas, articulos }: { cuentas: CuentaOpt[]; articulos: Ar
               </li>
             );
           })}
-          <li className="flex items-center justify-between bg-paper px-4 py-2 text-sm font-semibold">
+          <li className="flex items-center justify-between bg-paper px-4 py-2.5 text-sm font-semibold">
             <span>Total</span>
             <span className="tabular-nums">{formatMXN(total)}</span>
           </li>
@@ -157,7 +214,12 @@ function VentaForm({ cuentas, articulos }: { cuentas: CuentaOpt[]; articulos: Ar
       {error && <p className="mt-4 text-sm text-debt">{error}</p>}
 
       <div className="mt-5">
-        <button type="button" onClick={registrar} disabled={enviando} className={btnPrimary}>
+        <button
+          type="button"
+          onClick={registrar}
+          disabled={enviando || !cuentaId || lineas.length === 0}
+          className={btnPrimary}
+        >
           {enviando ? "Registrando…" : "Registrar venta"}
         </button>
       </div>
@@ -174,6 +236,11 @@ function AbonoForm({ cuentas }: { cuentas: CuentaOpt[] }) {
   const [referencia, setReferencia] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const cuentaOpts = useMemo(
+    () => cuentas.map((c) => ({ value: c.id, label: c.nombre })),
+    [cuentas]
+  );
 
   async function registrar() {
     setError(null);
@@ -208,15 +275,23 @@ function AbonoForm({ cuentas }: { cuentas: CuentaOpt[] }) {
   return (
     <div className="rounded-xl border border-line bg-white p-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Cuenta">
-          <select value={cuentaId} onChange={(e) => setCuentaId(e.target.value)} className={inputCls}>
-            <option value="">Selecciona…</option>
-            {cuentas.map((c) => (
-              <option key={c.id} value={c.id}>{c.nombre}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Monto (MXN)">
+        <div className="sm:col-span-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-ink/50">
+              Cuenta
+            </span>
+            <Combobox
+              options={cuentaOpts}
+              value={cuentaId}
+              onChange={setCuentaId}
+              placeholder="Escribe el nombre de la cuenta…"
+            />
+          </label>
+        </div>
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-ink/50">
+            Monto (MXN)
+          </span>
           <input
             type="number"
             inputMode="decimal"
@@ -227,23 +302,42 @@ function AbonoForm({ cuentas }: { cuentas: CuentaOpt[] }) {
             placeholder="0.00"
             className={inputCls}
           />
-        </Field>
-        <Field label="Método de pago">
-          <select value={metodo} onChange={(e) => setMetodo(e.target.value as typeof metodo)} className={inputCls}>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-ink/50">
+            Método de pago
+          </span>
+          <select
+            value={metodo}
+            onChange={(e) => setMetodo(e.target.value as typeof metodo)}
+            className={inputCls}
+          >
             <option value="efectivo">Efectivo</option>
             <option value="transferencia">Transferencia</option>
             <option value="otro">Otro</option>
           </select>
-        </Field>
-        <Field label="Referencia (opcional)">
-          <input value={referencia} onChange={(e) => setReferencia(e.target.value)} className={inputCls} />
-        </Field>
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-ink/50">
+            Referencia (opcional)
+          </span>
+          <input
+            value={referencia}
+            onChange={(e) => setReferencia(e.target.value)}
+            className={inputCls}
+          />
+        </label>
       </div>
 
       {error && <p className="mt-4 text-sm text-debt">{error}</p>}
 
       <div className="mt-5">
-        <button type="button" onClick={registrar} disabled={enviando} className={btnPrimary}>
+        <button
+          type="button"
+          onClick={registrar}
+          disabled={enviando}
+          className={btnPrimary}
+        >
           {enviando ? "Registrando…" : "Registrar abono"}
         </button>
       </div>
@@ -257,7 +351,6 @@ function MovimientosList({ movimientos }: { movimientos: MovRow[] }) {
   const [anulando, setAnulando] = useState<string | null>(null);
   const [anularError, setAnularError] = useState<string | null>(null);
 
-  // Filtros
   const [busqueda, setBusqueda] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
   const [fechaDesde, setFechaDesde] = useState("");
@@ -267,7 +360,8 @@ function MovimientosList({ movimientos }: { movimientos: MovRow[] }) {
 
   const filtradas = useMemo(() => {
     return movimientos.filter((m) => {
-      if (busqueda && !m.cuentaNombre.toLowerCase().includes(busqueda.toLowerCase())) return false;
+      if (busqueda && !m.cuentaNombre.toLowerCase().includes(busqueda.toLowerCase()))
+        return false;
       if (filtroTipo && m.tipo !== filtroTipo) return false;
       if (fechaDesde || fechaHasta) {
         const movFecha = new Date(m.fecha).toLocaleDateString("en-CA");
@@ -286,7 +380,12 @@ function MovimientosList({ movimientos }: { movimientos: MovRow[] }) {
   }
 
   async function anular(m: MovRow) {
-    if (!confirm(`¿Anular este movimiento de ${m.tipo === "cargo" ? "cargo" : "abono"} por ${formatMXN(m.monto)}?`)) return;
+    if (
+      !confirm(
+        `¿Anular este movimiento de ${m.tipo === "cargo" ? "cargo" : "abono"} por ${formatMXN(m.monto)}?`
+      )
+    )
+      return;
     setAnularError(null);
     setAnulando(m.id);
     try {
@@ -317,7 +416,6 @@ function MovimientosList({ movimientos }: { movimientos: MovRow[] }) {
     <>
       {anularError && <p className="mb-3 text-sm text-debt">{anularError}</p>}
 
-      {/* Barra de filtros */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <input
           type="search"
@@ -353,7 +451,7 @@ function MovimientosList({ movimientos }: { movimientos: MovRow[] }) {
           <button
             type="button"
             onClick={limpiarFiltros}
-            className="text-xs text-ink/40 hover:text-debt"
+            className="cursor-pointer text-xs text-ink/40 hover:text-debt"
           >
             Limpiar
           </button>
@@ -411,7 +509,8 @@ function MovimientosList({ movimientos }: { movimientos: MovRow[] }) {
                         esCargo ? "text-debt" : "text-paid"
                       }`}
                     >
-                      {esCargo ? "+" : "−"}{formatMXN(m.monto)}
+                      {esCargo ? "+" : "−"}
+                      {formatMXN(m.monto)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {puedeAnular ? (
@@ -419,7 +518,7 @@ function MovimientosList({ movimientos }: { movimientos: MovRow[] }) {
                           type="button"
                           onClick={() => anular(m)}
                           disabled={anulando === m.id}
-                          className="cursor-pointer rounded-md border border-debt/40 px-2 py-1 text-xs font-medium text-debt transition-colors hover:bg-debt/5 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="cursor-pointer rounded-md border border-debt/40 px-2 py-1 text-xs font-medium text-debt transition-colors hover:bg-debt/5 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {anulando === m.id ? "Anulando…" : "Anular"}
                         </button>

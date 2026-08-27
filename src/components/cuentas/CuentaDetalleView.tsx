@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { formatMXN, toCentavos } from "@/lib/money";
+import { Combobox } from "@/components/ui/Combobox";
 
 interface CuentaInfo {
   id: string;
@@ -64,7 +65,13 @@ function VentaRapidaForm({
   const [error, setError] = useState<string | null>(null);
 
   const art = (id: string) => articulos.find((a) => a.id === id);
+  const artSel = articuloId ? art(articuloId) : null;
   const total = lineas.reduce((s, l) => s + (art(l.articuloId)?.precio ?? 0) * l.cantidad, 0);
+
+  const articuloOpts = useMemo(
+    () => articulos.map((a) => ({ value: a.id, label: a.nombre, meta: formatMXN(a.precio) })),
+    [articulos]
+  );
 
   function agregar() {
     if (!articuloId || cantidad < 1) return;
@@ -106,14 +113,37 @@ function VentaRapidaForm({
   return (
     <div className="rounded-xl border border-line bg-white p-5">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-        <Field label="Producto">
-          <select value={articuloId} onChange={(e) => setArticuloId(e.target.value)} className={inputCls}>
-            <option value="">Selecciona…</option>
-            {articulos.map((a) => (
-              <option key={a.id} value={a.id}>{a.nombre} · {formatMXN(a.precio)}</option>
-            ))}
-          </select>
-        </Field>
+        <div>
+          <Field label="Producto">
+            <Combobox
+              options={articuloOpts}
+              value={articuloId}
+              onChange={setArticuloId}
+              placeholder="Escribe el nombre del producto…"
+            />
+          </Field>
+          {artSel && (
+            <p className="mt-1.5 flex items-center gap-2 text-xs text-ink/50">
+              <span>
+                Precio:{" "}
+                <span className="font-medium tabular-nums text-ink/80">
+                  {formatMXN(artSel.precio)}
+                </span>
+              </span>
+              {cantidad > 1 && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span>
+                    Subtotal:{" "}
+                    <span className="font-medium tabular-nums text-ink/80">
+                      {formatMXN(artSel.precio * cantidad)}
+                    </span>
+                  </span>
+                </>
+              )}
+            </p>
+          )}
+        </div>
         <Field label="Cantidad">
           <input
             type="number"
@@ -126,25 +156,36 @@ function VentaRapidaForm({
         <button
           type="button"
           onClick={agregar}
-          className="cursor-pointer rounded-lg border border-antara px-4 py-2 text-sm font-medium text-antara hover:bg-antara/5"
+          disabled={!articuloId}
+          className="cursor-pointer rounded-lg border border-antara px-4 py-2 text-sm font-medium text-antara transition-colors hover:bg-antara/5 disabled:cursor-not-allowed disabled:border-line disabled:text-ink/30"
         >
           Agregar
         </button>
       </div>
 
       {lineas.length > 0 && (
-        <ul className="mt-4 divide-y divide-line rounded-lg border border-line">
+        <ul className="mt-4 divide-y divide-line overflow-hidden rounded-lg border border-line">
           {lineas.map((l) => {
             const a = art(l.articuloId);
             return (
-              <li key={l.articuloId} className="flex items-center justify-between px-4 py-2 text-sm">
-                <span className="text-ink">{a?.nombre} × {l.cantidad}</span>
+              <li
+                key={l.articuloId}
+                className="flex items-center justify-between px-4 py-2.5 text-sm"
+              >
+                <span className="text-ink">
+                  {a?.nombre}
+                  <span className="ml-1 text-ink/40">× {l.cantidad}</span>
+                </span>
                 <span className="flex items-center gap-3">
-                  <span className="tabular-nums text-ink/70">{formatMXN((a?.precio ?? 0) * l.cantidad)}</span>
+                  <span className="tabular-nums text-ink/70">
+                    {formatMXN((a?.precio ?? 0) * l.cantidad)}
+                  </span>
                   <button
                     type="button"
-                    onClick={() => setLineas((p) => p.filter((x) => x.articuloId !== l.articuloId))}
-                    className="text-debt hover:underline"
+                    onClick={() =>
+                      setLineas((p) => p.filter((x) => x.articuloId !== l.articuloId))
+                    }
+                    className="cursor-pointer text-ink/30 transition-colors hover:text-debt"
                   >
                     ✕
                   </button>
@@ -152,7 +193,7 @@ function VentaRapidaForm({
               </li>
             );
           })}
-          <li className="flex items-center justify-between bg-paper px-4 py-2 text-sm font-semibold">
+          <li className="flex items-center justify-between bg-paper px-4 py-2.5 text-sm font-semibold">
             <span>Total</span>
             <span className="tabular-nums">{formatMXN(total)}</span>
           </li>
@@ -162,7 +203,12 @@ function VentaRapidaForm({
       {error && <p className="mt-3 text-sm text-debt">{error}</p>}
 
       <div className="mt-4">
-        <button type="button" onClick={registrar} disabled={enviando} className={btnPrimary}>
+        <button
+          type="button"
+          onClick={registrar}
+          disabled={enviando || lineas.length === 0}
+          className={btnPrimary}
+        >
           {enviando ? "Registrando…" : "Registrar venta"}
         </button>
       </div>
