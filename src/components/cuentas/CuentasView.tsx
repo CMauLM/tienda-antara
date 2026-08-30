@@ -5,10 +5,18 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatMXN } from "@/lib/money";
 
+const SECCIONES = ["maternal", "preescolar", "primaria"] as const;
+const SECCION_LABEL: Record<string, string> = {
+  maternal: "Maternal",
+  preescolar: "Preescolar",
+  primaria: "Primaria",
+};
+
 interface CuentaRow {
   id: string;
   nombre: string;
   tipo: "alumno" | "empleado";
+  seccion: string | null;
   grado: string | null;
   grupo: string | null;
   saldoActual: number;
@@ -46,24 +54,27 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
   // Filtros
   const [busqueda, setBusqueda] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
+  const [filtroSeccion, setFiltroSeccion] = useState("");
   const [filtroSaldo, setFiltroSaldo] = useState("");
 
-  const hayFiltros = busqueda || filtroTipo || filtroSaldo;
+  const hayFiltros = busqueda || filtroTipo || filtroSeccion || filtroSaldo;
 
   const cuentasFiltradas = useMemo(() => {
     return cuentas.filter((c) => {
       if (busqueda && !c.nombre.toLowerCase().includes(busqueda.toLowerCase())) return false;
       if (filtroTipo && c.tipo !== filtroTipo) return false;
+      if (filtroSeccion && c.seccion !== filtroSeccion) return false;
       if (filtroSaldo === "deuda" && c.saldoActual <= 0) return false;
       if (filtroSaldo === "favor" && c.saldoActual >= 0) return false;
       if (filtroSaldo === "cero" && c.saldoActual !== 0) return false;
       return true;
     });
-  }, [cuentas, busqueda, filtroTipo, filtroSaldo]);
+  }, [cuentas, busqueda, filtroTipo, filtroSeccion, filtroSaldo]);
 
   function limpiarFiltros() {
     setBusqueda("");
     setFiltroTipo("");
+    setFiltroSeccion("");
     setFiltroSaldo("");
   }
 
@@ -75,6 +86,7 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
     const payload = {
       nombre: String(fd.get("nombre") ?? "").trim(),
       tipo,
+      seccion: tipo === "alumno" ? String(fd.get("seccion") ?? "").trim() || undefined : undefined,
       grado: tipo === "alumno" ? String(fd.get("grado") ?? "").trim() || undefined : undefined,
       grupo: tipo === "alumno" ? String(fd.get("grupo") ?? "").trim() || undefined : undefined,
       responsable: {
@@ -136,6 +148,18 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
 
           {tipo === "alumno" && (
             <>
+              <Field label="Sección">
+                <select name="seccion" defaultValue="" className={inputCls}>
+                  <option value="" disabled>
+                    Selecciona…
+                  </option>
+                  {SECCIONES.map((s) => (
+                    <option key={s} value={s}>
+                      {SECCION_LABEL[s]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
               <Field label="Grado">
                 <input name="grado" className={inputCls} />
               </Field>
@@ -193,6 +217,18 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
               <option value="empleado">Empleado</option>
             </select>
             <select
+              value={filtroSeccion}
+              onChange={(e) => setFiltroSeccion(e.target.value)}
+              className={filterCls}
+            >
+              <option value="">Todas las secciones</option>
+              {SECCIONES.map((s) => (
+                <option key={s} value={s}>
+                  {SECCION_LABEL[s]}
+                </option>
+              ))}
+            </select>
+            <select
               value={filtroSaldo}
               onChange={(e) => setFiltroSaldo(e.target.value)}
               className={filterCls}
@@ -227,6 +263,7 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
                   <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink/50">
                     <th className="px-4 py-3 font-medium">Nombre</th>
                     <th className="px-4 py-3 font-medium">Tipo</th>
+                    <th className="px-4 py-3 font-medium">Sección</th>
                     <th className="px-4 py-3 font-medium">Grado/Grupo</th>
                     <th className="px-4 py-3 text-right font-medium">Saldo</th>
                   </tr>
@@ -240,6 +277,9 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
                         </Link>
                       </td>
                       <td className="px-4 py-3 capitalize text-ink/70">{c.tipo}</td>
+                      <td className="px-4 py-3 text-ink/70">
+                        {c.seccion ? SECCION_LABEL[c.seccion] : "—"}
+                      </td>
                       <td className="px-4 py-3 text-ink/70">
                         {c.grado ? `${c.grado}${c.grupo ? " " + c.grupo : ""}` : "—"}
                       </td>

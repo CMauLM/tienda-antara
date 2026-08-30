@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { registrarVentaSchema } from "@/validators/movimiento";
 import { registrarVenta } from "@/services/movimientos.service";
-import { getUsuarioActualId } from "@/lib/session";
+import { requireRolApi, ApiAuthError } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   try {
+    const sesion = await requireRolApi(["admin", "vendedor"]);
     const body = await req.json();
     const parsed = registrarVentaSchema.safeParse(body);
     if (!parsed.success) {
@@ -13,10 +14,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const registradoPor = await getUsuarioActualId();
-    const movimiento = await registrarVenta({ ...parsed.data, registradoPor });
+    const movimiento = await registrarVenta({ ...parsed.data, registradoPor: sesion.id });
     return NextResponse.json({ ok: true, movimiento }, { status: 201 });
   } catch (err) {
+    if (err instanceof ApiAuthError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+    }
     return NextResponse.json(
       { ok: false, error: (err as Error).message },
       { status: 400 }

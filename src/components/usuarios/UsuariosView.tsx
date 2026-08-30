@@ -7,12 +7,16 @@ interface UsuarioRow {
   id: string;
   nombre: string;
   email: string;
-  rol: "admin" | "cajero";
+  rol: "admin" | "vendedor" | "abonador";
   activo: boolean;
 }
 
-const ROLES = ["admin", "cajero"] as const;
-const ROL_LABEL: Record<string, string> = { admin: "Admin", cajero: "Cajero" };
+const ROLES = ["admin", "vendedor", "abonador"] as const;
+const ROL_LABEL: Record<string, string> = {
+  admin: "Admin",
+  vendedor: "Vendedor",
+  abonador: "Abonador",
+};
 
 const inputCls =
   "w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-antara";
@@ -93,7 +97,7 @@ export function UsuariosView({ usuarios }: { usuarios: UsuarioRow[] }) {
     const payload: Record<string, unknown> = {
       nombre: String(fd.get("nombre") ?? "").trim(),
       email: String(fd.get("email") ?? "").trim(),
-      rol: String(fd.get("rol") ?? "cajero"),
+      rol: String(fd.get("rol") ?? "vendedor"),
     };
     if (password) payload.password = password;
     if (!editando) {
@@ -192,7 +196,7 @@ export function UsuariosView({ usuarios }: { usuarios: UsuarioRow[] }) {
           <Field label="Rol">
             <select
               name="rol"
-              defaultValue={editando?.rol ?? "cajero"}
+              defaultValue={editando?.rol ?? "vendedor"}
               className={inputCls}
             >
               {ROLES.map((r) => (
@@ -237,7 +241,8 @@ export function UsuariosView({ usuarios }: { usuarios: UsuarioRow[] }) {
             >
               <option value="">Todos los roles</option>
               <option value="admin">Admin</option>
-              <option value="cajero">Cajero</option>
+              <option value="vendedor">Vendedor</option>
+              <option value="abonador">Abonador</option>
             </select>
             <select
               value={filtroEstado}

@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# datos de alumnos (PII) — no debe vivir en el historial de git
+Excel de Alumnado.xlsx

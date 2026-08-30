@@ -47,6 +47,7 @@ export async function GET() {
     const alumno = await CuentaModel.create({
       nombre: 'Juan Pérez',
       tipo: 'alumno',
+      seccion: 'primaria',
       grado: '5',
       grupo: 'A',
       responsable: { nombre: 'María Pérez', telefono: '9841234567' },

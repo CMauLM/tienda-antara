@@ -8,7 +8,7 @@ import {
 
 // Usuarios del SISTEMA (los que hacen login). No confundir con las Cuentas
 // (alumnos/empleados que compran a crédito y no se autentican).
-export const ROLES_USUARIO = ['admin', 'cajero'] as const;
+export const ROLES_USUARIO = ['admin', 'vendedor', 'abonador'] as const;
 export type RolUsuario = (typeof ROLES_USUARIO)[number];
 
 const usuarioSchema = new Schema(
@@ -23,7 +23,7 @@ const usuarioSchema = new Schema(
     },
     // select:false -> no se devuelve en queries por defecto.
     passwordHash: { type: String, required: true, select: false },
-    rol: { type: String, enum: ROLES_USUARIO, default: 'cajero', required: true },
+    rol: { type: String, enum: ROLES_USUARIO, default: 'vendedor', required: true },
     activo: { type: Boolean, default: true }, // soft-delete: desactivar, no borrar
   },
   { timestamps: true }

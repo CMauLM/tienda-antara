@@ -4,14 +4,14 @@ export const crearUsuarioSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre es obligatorio"),
   email: z.string().trim().email("Email inválido"),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
-  rol: z.enum(["admin", "cajero"]),
+  rol: z.enum(["admin", "vendedor", "abonador"]),
 });
 
 export const actualizarUsuarioSchema = z.object({
   nombre: z.string().trim().min(1).optional(),
   email: z.string().trim().email().optional(),
   password: z.string().min(6).optional(), // vacío = no cambiar
-  rol: z.enum(["admin", "cajero"]).optional(),
+  rol: z.enum(["admin", "vendedor", "abonador"]).optional(),
   activo: z.boolean().optional(),
 });
 

@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { crearArticuloSchema } from "@/validators/articulo";
 import { listarArticulos, crearArticulo } from "@/services/articulos.service";
+import { requireRolApi, ApiAuthError } from "@/lib/session";
 
 export async function GET() {
   try {
+    await requireRolApi(["admin", "vendedor"]);
     const articulos = await listarArticulos(false);
     return NextResponse.json({ ok: true, articulos });
   } catch (err) {
+    if (err instanceof ApiAuthError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+    }
     return NextResponse.json(
       { ok: false, error: (err as Error).message },
       { status: 500 }
@@ -16,6 +21,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    await requireRolApi(["admin", "vendedor"]);
     const body = await req.json();
     const parsed = crearArticuloSchema.safeParse(body);
     if (!parsed.success) {
@@ -27,6 +33,9 @@ export async function POST(req: NextRequest) {
     const articulo = await crearArticulo(parsed.data);
     return NextResponse.json({ ok: true, articulo }, { status: 201 });
   } catch (err) {
+    if (err instanceof ApiAuthError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+    }
     return NextResponse.json(
       { ok: false, error: (err as Error).message },
       { status: 500 }

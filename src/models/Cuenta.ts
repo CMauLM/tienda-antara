@@ -10,12 +10,17 @@ import {
 export const TIPOS_CUENTA = ['alumno', 'empleado'] as const;
 export type TipoCuenta = (typeof TIPOS_CUENTA)[number];
 
+// Nivel educativo. Solo aplica a alumnos.
+export const SECCIONES_CUENTA = ['maternal', 'preescolar', 'primaria'] as const;
+export type SeccionCuenta = (typeof SECCIONES_CUENTA)[number];
+
 const cuentaSchema = new Schema(
   {
     nombre: { type: String, required: true, trim: true },
     tipo: { type: String, enum: TIPOS_CUENTA, required: true },
 
     // Solo aplica a alumnos
+    seccion: { type: String, enum: SECCIONES_CUENTA },
     grado: { type: String, trim: true },
     grupo: { type: String, trim: true },
 

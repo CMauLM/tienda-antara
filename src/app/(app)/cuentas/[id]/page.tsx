@@ -5,6 +5,7 @@ import { obtenerCuenta } from "@/services/cuentas.service";
 import { listarMovimientosCuenta } from "@/services/movimientos.service";
 import { listarArticulos } from "@/services/articulos.service";
 import { CuentaDetalleView } from "@/components/cuentas/CuentaDetalleView";
+import { requireSesion } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export default async function CuentaDetallePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireSesion(["admin", "abonador"]);
   const { id } = await params;
 
   const [cuentaDoc, movimientosDocs, articulosDocs] = await Promise.all([

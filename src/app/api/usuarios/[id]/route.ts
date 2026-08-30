@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { actualizarUsuarioSchema } from "@/validators/usuario";
 import { actualizarUsuario } from "@/services/usuarios.service";
+import { requireRolApi, ApiAuthError } from "@/lib/session";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await requireRolApi(["admin"]);
     const { id } = await params;
     const body = await req.json();
     const parsed = actualizarUsuarioSchema.safeParse(body);
@@ -25,6 +27,9 @@ export async function PATCH(
     }
     return NextResponse.json({ ok: true, usuario });
   } catch (err) {
+    if (err instanceof ApiAuthError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+    }
     const msg = (err as Error).message;
     const status = msg.includes("duplicate key") ? 409 : 500;
     return NextResponse.json({ ok: false, error: msg }, { status });

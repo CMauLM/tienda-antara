@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "importar-alumnos": "node scripts/importar-alumnos.mjs",
+    "reset-password": "node scripts/reset-password.mjs"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -25,6 +27,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "xlsx": "^0.18.5"
   }
 }

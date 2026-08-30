@@ -1,16 +1,18 @@
 import { PageHeader } from "@/components/layout/PageHeader";
 import { listarUsuarios } from "@/services/usuarios.service";
 import { UsuariosView } from "@/components/usuarios/UsuariosView";
+import { requireSesion } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function UsuariosPage() {
+  await requireSesion(["admin"]);
   const docs = await listarUsuarios();
   const usuarios = docs.map((u) => ({
     id: String(u._id),
     nombre: u.nombre,
     email: u.email,
-    rol: u.rol as "admin" | "cajero",
+    rol: u.rol as "admin" | "vendedor" | "abonador",
     activo: u.activo ?? true,
   }));
 
@@ -18,7 +20,7 @@ export default async function UsuariosPage() {
     <>
       <PageHeader
         title="Usuarios"
-        subtitle="Administradores y cajeros del sistema"
+        subtitle="Administradores, vendedores y abonadores del sistema"
       />
       <UsuariosView usuarios={usuarios} />
     </>

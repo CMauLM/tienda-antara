@@ -346,7 +346,13 @@ function AbonoForm({ cuentas }: { cuentas: CuentaOpt[] }) {
 }
 
 // ---------- Lista con filtros y botón Anular ----------
-function MovimientosList({ movimientos }: { movimientos: MovRow[] }) {
+function MovimientosList({
+  movimientos,
+  permiteAnular,
+}: {
+  movimientos: MovRow[];
+  permiteAnular: boolean;
+}) {
   const router = useRouter();
   const [anulando, setAnulando] = useState<string | null>(null);
   const [anularError, setAnularError] = useState<string | null>(null);
@@ -480,7 +486,7 @@ function MovimientosList({ movimientos }: { movimientos: MovRow[] }) {
             <tbody>
               {filtradas.map((m) => {
                 const esCargo = m.tipo === "cargo";
-                const puedeAnular = !m.esReversa && !m.yaRevertido;
+                const puedeAnular = permiteAnular && !m.esReversa && !m.yaRevertido;
                 return (
                   <tr key={m.id} className="border-b border-line last:border-0">
                     <td className="px-4 py-3 text-ink/70">
@@ -541,42 +547,53 @@ function MovimientosList({ movimientos }: { movimientos: MovRow[] }) {
 
 // ---------- Contenedor ----------
 export function MovimientosView({
+  rol,
   cuentas,
   articulos,
   movimientos,
 }: {
+  rol: "admin" | "vendedor" | "abonador";
   cuentas: CuentaOpt[];
   articulos: ArticuloOpt[];
   movimientos: MovRow[];
 }) {
-  const [tab, setTab] = useState<"venta" | "abono">("venta");
+  const puedeVender = rol === "admin" || rol === "vendedor";
+  const puedeAbonar = rol === "admin" || rol === "abonador";
+  const tabs = [
+    ...(puedeVender ? (["venta"] as const) : []),
+    ...(puedeAbonar ? (["abono"] as const) : []),
+  ];
+
+  const [tab, setTab] = useState<"venta" | "abono">(tabs[0] ?? "venta");
 
   return (
     <>
-      <div className="mb-6 inline-flex rounded-lg border border-line bg-white p-1">
-        {(["venta", "abono"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`cursor-pointer rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === t ? "bg-antara text-white" : "text-ink/60 hover:text-ink"
-            }`}
-          >
-            {t === "venta" ? "Registrar venta" : "Registrar abono"}
-          </button>
-        ))}
-      </div>
-
-      {tab === "venta" ? (
-        <VentaForm cuentas={cuentas} articulos={articulos} />
-      ) : (
-        <AbonoForm cuentas={cuentas} />
+      {tabs.length > 1 && (
+        <div className="mb-6 inline-flex rounded-lg border border-line bg-white p-1">
+          {tabs.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`cursor-pointer rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+                tab === t ? "bg-antara text-white" : "text-ink/60 hover:text-ink"
+              }`}
+            >
+              {t === "venta" ? "Registrar venta" : "Registrar abono"}
+            </button>
+          ))}
+        </div>
       )}
+
+      {tab === "venta" && puedeVender ? (
+        <VentaForm cuentas={cuentas} articulos={articulos} />
+      ) : puedeAbonar ? (
+        <AbonoForm cuentas={cuentas} />
+      ) : null}
 
       <h2 className="mb-3 mt-10 font-display text-lg font-bold text-ink">
         Movimientos recientes
       </h2>
-      <MovimientosList movimientos={movimientos} />
+      <MovimientosList movimientos={movimientos} permiteAnular={rol === "admin"} />
     </>
   );
 }

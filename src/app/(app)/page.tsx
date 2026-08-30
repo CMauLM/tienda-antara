@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { obtenerDashboard } from "@/services/dashboard.service";
 import { formatMXN } from "@/lib/money";
+import { requireSesion } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +16,23 @@ const CATEGORIA_LABEL: Record<string, string> = {
 const toneClass = { debt: "text-debt", paid: "text-paid", ink: "text-ink" };
 
 export default async function PanelPage() {
+  const sesion = await requireSesion();
   const dash = await obtenerDashboard();
 
+  // Un vendedor solo registra ventas: no debe ver adeudos/deudores.
+  const veDeudores = sesion.rol !== "vendedor";
+
   const tarjetas = [
-    { label: "Adeudo total", value: formatMXN(dash.adeudoTotal), tone: "debt" as const },
-    { label: "Cobros del mes", value: formatMXN(dash.cobrosDelMes), tone: "paid" as const },
+    ...(veDeudores
+      ? [
+          { label: "Adeudo total", value: formatMXN(dash.adeudoTotal), tone: "debt" as const },
+          { label: "Cobros del mes", value: formatMXN(dash.cobrosDelMes), tone: "paid" as const },
+        ]
+      : []),
     { label: "Ventas del mes", value: formatMXN(dash.ventasDelMes), tone: "ink" as const },
-    { label: "Cuentas con saldo", value: String(dash.cuentasConSaldo), tone: "ink" as const },
+    ...(veDeudores
+      ? [{ label: "Cuentas con saldo", value: String(dash.cuentasConSaldo), tone: "ink" as const }]
+      : []),
   ];
 
   const totalVentas = dash.ventasPorCategoria.reduce((s, v) => s + v.total, 0);
@@ -42,8 +53,9 @@ export default async function PanelPage() {
         ))}
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className={`mt-8 grid grid-cols-1 gap-6 ${veDeudores ? "lg:grid-cols-2" : ""}`}>
         {/* Top deudores */}
+        {veDeudores && (
         <div>
           <h2 className="mb-3 font-display text-lg font-bold text-ink">Top deudores</h2>
           {dash.topDeudores.length === 0 ? (
@@ -72,6 +84,7 @@ export default async function PanelPage() {
             </div>
           )}
         </div>
+        )}
 
         {/* Ventas por categoría */}
         <div>
