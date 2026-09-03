@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { formatMXN, toCentavos } from "@/lib/money";
 import { Combobox } from "@/components/ui/Combobox";
 
-interface CuentaOpt { id: string; nombre: string }
+interface CuentaOpt { id: string; nombre: string; detalle?: string }
 interface ArticuloOpt { id: string; nombre: string; precio: number }
 interface MovRow {
   id: string;
@@ -52,7 +52,7 @@ function VentaForm({ cuentas, articulos }: { cuentas: CuentaOpt[]; articulos: Ar
 
   // Opciones para los Comboboxes
   const cuentaOpts = useMemo(
-    () => cuentas.map((c) => ({ value: c.id, label: c.nombre })),
+    () => cuentas.map((c) => ({ value: c.id, label: c.nombre, meta: c.detalle })),
     [cuentas]
   );
   const articuloOpts = useMemo(
@@ -238,7 +238,7 @@ function AbonoForm({ cuentas }: { cuentas: CuentaOpt[] }) {
   const [error, setError] = useState<string | null>(null);
 
   const cuentaOpts = useMemo(
-    () => cuentas.map((c) => ({ value: c.id, label: c.nombre })),
+    () => cuentas.map((c) => ({ value: c.id, label: c.nombre, meta: c.detalle })),
     [cuentas]
   );
 

@@ -6,7 +6,7 @@ import { requireSesion } from "@/lib/session";
 export const dynamic = "force-dynamic"; // datos siempre frescos
 
 export default async function CuentasPage() {
-  await requireSesion(["admin", "abonador"]);
+  const sesion = await requireSesion(["admin", "abonador"]);
   const docs = await listarCuentas();
   const cuentas = docs.map((c) => ({
     id: String(c._id),
@@ -16,6 +16,10 @@ export default async function CuentasPage() {
     grado: c.grado ?? null,
     grupo: c.grupo ?? null,
     saldoActual: c.saldoActual ?? 0,
+    responsable: {
+      nombre: c.responsable?.nombre ?? "",
+      telefono: c.responsable?.telefono ?? "",
+    },
   }));
 
   return (
@@ -24,7 +28,7 @@ export default async function CuentasPage() {
         title="Cuentas"
         subtitle="Alumnos y empleados con cuenta a crédito"
       />
-      <CuentasView cuentas={cuentas} />
+      <CuentasView cuentas={cuentas} rol={sesion.rol} />
     </>
   );
 }

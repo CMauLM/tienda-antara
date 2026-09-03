@@ -7,6 +7,21 @@ import { requireSesion } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
+const SECCION_LABEL: Record<string, string> = {
+  maternal: "Maternal",
+  preescolar: "Preescolar",
+  primaria: "Primaria",
+};
+
+// Texto corto para distinguir cuentas con nombres parecidos en el buscador
+// (ej. dos alumnas "Astrid" en secciones/grados distintos).
+function describirCuenta(c: { tipo: string; seccion?: string | null; grado?: string | null; grupo?: string | null }) {
+  if (c.tipo !== "alumno") return "Empleado";
+  const seccion = c.seccion ? SECCION_LABEL[c.seccion] ?? c.seccion : null;
+  const grado = c.grado ? `${c.grado}${c.grupo ? " " + c.grupo : ""}` : null;
+  return [seccion, grado].filter(Boolean).join(" · ") || undefined;
+}
+
 export default async function MovimientosPage() {
   const sesion = await requireSesion();
   const [cuentasDocs, articulosDocs, movimientosDocs] = await Promise.all([
@@ -15,7 +30,11 @@ export default async function MovimientosPage() {
     listarMovimientos(),
   ]);
 
-  const cuentas = cuentasDocs.map((c) => ({ id: String(c._id), nombre: c.nombre }));
+  const cuentas = cuentasDocs.map((c) => ({
+    id: String(c._id),
+    nombre: c.nombre,
+    detalle: describirCuenta(c),
+  }));
   const articulos = articulosDocs.map((a) => ({
     id: String(a._id),
     nombre: a.nombre,

@@ -20,6 +20,7 @@ interface CuentaRow {
   grado: string | null;
   grupo: string | null;
   saldoActual: number;
+  responsable?: { nombre: string; telefono: string };
 }
 
 const inputCls =
@@ -44,9 +45,17 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
+export function CuentasView({
+  cuentas,
+  rol,
+}: {
+  cuentas: CuentaRow[];
+  rol: "admin" | "vendedor" | "abonador";
+}) {
   const router = useRouter();
+  const puedeEditar = rol === "admin";
   const [abierto, setAbierto] = useState(false);
+  const [editando, setEditando] = useState<CuentaRow | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tipo, setTipo] = useState<"alumno" | "empleado">("alumno");
@@ -78,6 +87,26 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
     setFiltroSaldo("");
   }
 
+  function abrirNuevo() {
+    setEditando(null);
+    setTipo("alumno");
+    setError(null);
+    setAbierto(true);
+  }
+
+  function abrirEditar(c: CuentaRow) {
+    setEditando(c);
+    setTipo(c.tipo);
+    setError(null);
+    setAbierto(true);
+  }
+
+  function cancelar() {
+    setAbierto(false);
+    setEditando(null);
+    setError(null);
+  }
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -97,16 +126,22 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
 
     setEnviando(true);
     try {
-      const res = await fetch("/api/cuentas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = editando
+        ? await fetch(`/api/cuentas/${editando.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+        : await fetch("/api/cuentas", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        throw new Error(data.error ?? "No se pudo crear la cuenta");
+        throw new Error(data.error ?? "No se pudo guardar la cuenta");
       }
-      setAbierto(false);
+      cancelar();
       router.refresh();
     } catch (err) {
       setError((err as Error).message);
@@ -115,11 +150,13 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
     }
   }
 
+  const formKey = editando?.id ?? "nuevo";
+
   return (
     <>
       <div className="mb-6 flex justify-end">
         <button
-          onClick={() => setAbierto((v) => !v)}
+          onClick={abierto ? cancelar : abrirNuevo}
           className="cursor-pointer rounded-lg bg-antara px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-antara-dark"
         >
           {abierto ? "Cancelar" : "Nueva cuenta"}
@@ -128,11 +165,12 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
 
       {abierto && (
         <form
+          key={formKey}
           onSubmit={onSubmit}
           className="mb-8 grid grid-cols-1 gap-4 rounded-xl border border-line bg-white p-5 sm:grid-cols-2"
         >
           <Field label="Nombre">
-            <input name="nombre" required className={inputCls} />
+            <input name="nombre" required defaultValue={editando?.nombre ?? ""} className={inputCls} />
           </Field>
           <Field label="Tipo">
             <select
@@ -149,7 +187,7 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
           {tipo === "alumno" && (
             <>
               <Field label="Sección">
-                <select name="seccion" defaultValue="" className={inputCls}>
+                <select name="seccion" defaultValue={editando?.seccion ?? ""} className={inputCls}>
                   <option value="" disabled>
                     Selecciona…
                   </option>
@@ -161,19 +199,19 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
                 </select>
               </Field>
               <Field label="Grado">
-                <input name="grado" className={inputCls} />
+                <input name="grado" defaultValue={editando?.grado ?? ""} className={inputCls} />
               </Field>
               <Field label="Grupo">
-                <input name="grupo" className={inputCls} />
+                <input name="grupo" defaultValue={editando?.grupo ?? ""} className={inputCls} />
               </Field>
             </>
           )}
 
           <Field label="Responsable (opcional)">
-            <input name="respNombre" className={inputCls} />
+            <input name="respNombre" defaultValue={editando?.responsable?.nombre ?? ""} className={inputCls} />
           </Field>
           <Field label="Teléfono (opcional)">
-            <input name="respTel" className={inputCls} />
+            <input name="respTel" defaultValue={editando?.responsable?.telefono ?? ""} className={inputCls} />
           </Field>
 
           {error && <p className="text-sm text-debt sm:col-span-2">{error}</p>}
@@ -184,7 +222,7 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
               disabled={enviando}
               className="cursor-pointer rounded-lg bg-antara px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-antara-dark disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {enviando ? "Guardando…" : "Guardar cuenta"}
+              {enviando ? "Guardando…" : editando ? "Actualizar" : "Guardar cuenta"}
             </button>
           </div>
         </form>
@@ -266,6 +304,7 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
                     <th className="px-4 py-3 font-medium">Sección</th>
                     <th className="px-4 py-3 font-medium">Grado/Grupo</th>
                     <th className="px-4 py-3 text-right font-medium">Saldo</th>
+                    {puedeEditar && <th className="px-4 py-3 font-medium"></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -288,6 +327,17 @@ export function CuentasView({ cuentas }: { cuentas: CuentaRow[] }) {
                       >
                         {formatMXN(c.saldoActual)}
                       </td>
+                      {puedeEditar && (
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => abrirEditar(c)}
+                            className="cursor-pointer text-xs text-antara hover:underline"
+                          >
+                            Editar
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

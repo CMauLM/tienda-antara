@@ -1,6 +1,6 @@
 import { dbConnect } from "@/lib/db";
 import { CuentaModel } from "@/models/Cuenta";
-import type { CrearCuentaInput } from "@/validators/cuenta";
+import type { CrearCuentaInput, ActualizarCuentaInput } from "@/validators/cuenta";
 
 export async function listarCuentas() {
   await dbConnect();
@@ -15,4 +15,12 @@ export async function obtenerCuenta(id: string) {
 export async function crearCuenta(input: CrearCuentaInput) {
   await dbConnect();
   return CuentaModel.create(input);
+}
+
+export async function actualizarCuenta(id: string, input: ActualizarCuentaInput) {
+  await dbConnect();
+  return CuentaModel.findByIdAndUpdate(id, input, {
+    new: true,
+    runValidators: true,
+  }).lean();
 }
