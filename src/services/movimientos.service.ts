@@ -2,7 +2,7 @@ import mongoose, { type HydratedDocument } from 'mongoose';
 import { dbConnect } from '@/lib/db';
 import { CuentaModel } from '@/models/Cuenta';
 import { ArticuloModel } from '@/models/Articulo';
-import { MovimientoModel, type Movimiento } from '@/models/Movimiento';
+import { MovimientoModel, type Movimiento, type TipoMovimiento, type MetodoPago } from '@/models/Movimiento';
 
 type MovimientoDoc = HydratedDocument<Movimiento>;
 
@@ -210,14 +210,59 @@ export async function reversarMovimiento(
 }
 
 // ---------- Listado para la UI (recientes, DESC) ----------
-export async function listarMovimientos(cuentaId?: string, limit = 50) {
+// IMPORTANTE: el filtro de tipo (cargo/abono) debe aplicarse ANTES del
+// límite. Si se trae "los últimos N de cualquier tipo" y luego se filtra en
+// el cliente/página, una racha de ventas puede empujar abonos viejos fuera
+// de la ventana, haciendo que la lista se vea incompleta frente a un total
+// agregado (ej. "Cobros del mes" del panel, que sí suma todo el mes).
+//
+// El rango de fechas (desde/hasta) también se aplica aquí, en el servidor,
+// para que un corte de caja de una semana pasada sea exacto — nunca se
+// limita a "los últimos N" cuando se pide un rango específico, porque eso
+// podría dejar fuera movimientos reales de ese rango si hubo mucha actividad
+// después.
+export async function listarMovimientos(
+  opts: {
+    cuentaId?: string;
+    tipo?: TipoMovimiento;
+    metodoPago?: MetodoPago;
+    desde?: Date;
+    hasta?: Date;
+    limit?: number;
+  } = {}
+) {
   await dbConnect();
-  const filtro = cuentaId ? { cuenta: cuentaId } : {};
+  const { cuentaId, tipo, metodoPago, desde, hasta, limit = 5000 } = opts;
+  const filtro: Record<string, unknown> = {};
+  if (cuentaId) filtro.cuenta = cuentaId;
+  if (tipo) filtro.tipo = tipo;
+  if (metodoPago) filtro.metodoPago = metodoPago;
+  if (desde || hasta) {
+    filtro.fecha = {
+      ...(desde ? { $gte: desde } : {}),
+      ...(hasta ? { $lt: hasta } : {}),
+    };
+  }
+
   return MovimientoModel.find(filtro)
     .sort({ fecha: -1 })
     .limit(limit)
     .populate('cuenta', 'nombre')
     .lean();
+}
+
+// IDs de movimientos que ya tienen una reversa (para marcar "Anulado" /
+// excluirlos de un total neto). Deliberadamente SIN los filtros de
+// tipo/método/fecha de listarMovimientos: una reversa no trae metodoPago ni
+// necesariamente cae en el mismo rango que el movimiento original, así que
+// si se acotara igual, un abono revertido podría no detectarse como tal y
+// se contaría de más en un corte de caja.
+export async function listarIdsRevertidos(): Promise<Set<string>> {
+  await dbConnect();
+  const reversas = await MovimientoModel.find({ reversaDe: { $ne: null } })
+    .select('reversaDe')
+    .lean();
+  return new Set(reversas.map((r) => String(r.reversaDe)));
 }
 
 // ---------- Ledger de una cuenta (ASC, para saldo corriente) ----------

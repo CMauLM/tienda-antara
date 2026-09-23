@@ -324,7 +324,11 @@ export function CuentaDetalleView({
 
   const ledgerFiltrado = useMemo(() => {
     return ledger.filter((row) => {
-      if (filtroTipo && row.tipo !== filtroTipo) return false;
+      // "Solo abonos"/"Solo cargos" deben mostrar movimientos reales, no
+      // reversas (una reversa de venta queda registrada como tipo "abono"
+      // para efectos de saldo, pero no es un pago — mezclarla aquí infla el
+      // total frente a "Cobros del mes" del panel general).
+      if (filtroTipo && (row.tipo !== filtroTipo || row.esReversa)) return false;
       if (fechaDesde || fechaHasta) {
         const rowFecha = new Date(row.fecha).toLocaleDateString("en-CA");
         if (fechaDesde && rowFecha < fechaDesde) return false;
@@ -506,10 +510,14 @@ export function CuentaDetalleView({
                           <span className="ml-2 text-xs text-ink/40">· {row.nota}</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-debt">
+                      <td
+                        className={`px-4 py-3 text-right tabular-nums ${row.esReversa ? "text-ink/40" : "text-debt"}`}
+                      >
                         {row.tipo === "cargo" ? formatMXN(row.monto) : ""}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-paid">
+                      <td
+                        className={`px-4 py-3 text-right tabular-nums ${row.esReversa ? "text-ink/40" : "text-paid"}`}
+                      >
                         {row.tipo === "abono" ? formatMXN(row.monto) : ""}
                       </td>
                       <td
