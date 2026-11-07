@@ -3,13 +3,15 @@
 import { useState, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { formatMXN, toCentavos } from "@/lib/money";
+import { inputDesdeFechaLocal } from "@/lib/fecha";
 import { Combobox } from "@/components/ui/Combobox";
 
 interface CuentaOpt { id: string; nombre: string; detalle?: string }
 interface ArticuloOpt { id: string; nombre: string; precio: number }
 interface MovRow {
   id: string;
-  fecha: string;
+  fechaConsumo: string;
+  fechaCaptura: string;
   cuentaNombre: string;
   tipo: "cargo" | "abono";
   monto: number;
@@ -51,6 +53,7 @@ function VentaForm({ cuentas, articulos }: { cuentas: CuentaOpt[]; articulos: Ar
   const [articuloId, setArticuloId] = useState("");
   const [cantidad, setCantidad] = useState(1);
   const [lineas, setLineas] = useState<{ articuloId: string; cantidad: number }[]>([]);
+  const [fechaConsumo, setFechaConsumo] = useState(() => inputDesdeFechaLocal(new Date()));
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,7 +100,7 @@ function VentaForm({ cuentas, articulos }: { cuentas: CuentaOpt[]; articulos: Ar
       const res = await fetch("/api/movimientos/venta", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cuentaId, lineas }),
+        body: JSON.stringify({ cuentaId, lineas, fechaConsumo }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error ?? "No se pudo registrar la venta");
@@ -113,15 +116,26 @@ function VentaForm({ cuentas, articulos }: { cuentas: CuentaOpt[]; articulos: Ar
 
   return (
     <div className="rounded-xl border border-line bg-white p-5">
-      {/* Cuenta */}
-      <Field label="Cuenta">
-        <Combobox
-          options={cuentaOpts}
-          value={cuentaId}
-          onChange={setCuentaId}
-          placeholder="Escribe el nombre de la cuenta…"
-        />
-      </Field>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
+        {/* Cuenta */}
+        <Field label="Cuenta">
+          <Combobox
+            options={cuentaOpts}
+            value={cuentaId}
+            onChange={setCuentaId}
+            placeholder="Escribe el nombre de la cuenta…"
+          />
+        </Field>
+        <Field label="Fecha de consumo">
+          <input
+            type="date"
+            value={fechaConsumo}
+            max={inputDesdeFechaLocal(new Date())}
+            onChange={(e) => setFechaConsumo(e.target.value)}
+            className={`${inputCls} w-44`}
+          />
+        </Field>
+      </div>
 
       {/* Producto + cantidad + botón Agregar */}
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
@@ -592,12 +606,24 @@ function MovimientosList({
                 return (
                   <tr key={m.id} className="border-b border-line last:border-0">
                     <td className="px-4 py-3 text-ink/70">
-                      {new Date(m.fecha).toLocaleDateString("es-MX", {
+                      {new Date(m.fechaConsumo).toLocaleDateString("es-MX", {
                         day: "2-digit",
                         month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
                       })}
+                      {new Date(m.fechaConsumo).toLocaleDateString("en-CA") !==
+                        new Date(m.fechaCaptura).toLocaleDateString("en-CA") && (
+                        <span className="block text-xs text-ink/40">
+                          capturado{" "}
+                          {new Date(m.fechaCaptura).toLocaleDateString("es-MX", {
+                            day: "2-digit",
+                            month: "short",
+                          })}{" "}
+                          {new Date(m.fechaCaptura).toLocaleTimeString("es-MX", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 font-medium text-ink">{m.cuentaNombre}</td>
                     <td className="px-4 py-3">

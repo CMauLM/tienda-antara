@@ -3,6 +3,7 @@ import { dbConnect } from '@/lib/db';
 import { CuentaModel } from '@/models/Cuenta';
 import { ArticuloModel } from '@/models/Articulo';
 import { MovimientoModel, type Movimiento, type TipoMovimiento, type MetodoPago } from '@/models/Movimiento';
+import { fechaLocalDesdeInput } from '@/lib/fecha';
 
 type MovimientoDoc = HydratedDocument<Movimiento>;
 
@@ -18,6 +19,7 @@ interface RegistrarVentaInput {
   lineas: LineaVentaInput[];
   registradoPor: string;
   nota?: string;
+  fechaConsumo?: string; // "yyyy-mm-dd"; sin esto, el consumo es hoy
 }
 
 export async function registrarVenta(
@@ -65,6 +67,15 @@ export async function registrarVenta(
         throw new Error('La venta excede el límite de crédito de la cuenta');
       }
 
+      // Si no se especifica, el consumo es hoy (igual que `fecha`). Si se
+      // manda algo que no se pueda parsear, se ignora en vez de tronar —
+      // el validador de la ruta ya exige el formato correcto antes de
+      // llegar aquí; esto es solo defensivo para otros llamadores (seed,
+      // scripts) que no pasan el campo.
+      const fechaConsumo = input.fechaConsumo
+        ? fechaLocalDesdeInput(input.fechaConsumo) ?? undefined
+        : undefined;
+
       const [mov] = await MovimientoModel.create(
         [
           {
@@ -74,6 +85,7 @@ export async function registrarVenta(
             lineas,
             registradoPor: input.registradoPor,
             nota: input.nota,
+            ...(fechaConsumo ? { fechaConsumo } : {}),
           },
         ],
         { session }
@@ -238,14 +250,16 @@ export async function listarMovimientos(
   if (tipo) filtro.tipo = tipo;
   if (metodoPago) filtro.metodoPago = metodoPago;
   if (desde || hasta) {
-    filtro.fecha = {
+    // Por fecha de CONSUMO, no de captura — un corte de caja de un rango
+    // de fechas debe reflejar lo que realmente se consumió en ese rango.
+    filtro.fechaConsumo = {
       ...(desde ? { $gte: desde } : {}),
       ...(hasta ? { $lt: hasta } : {}),
     };
   }
 
   return MovimientoModel.find(filtro)
-    .sort({ fecha: -1 })
+    .sort({ fechaConsumo: -1 })
     .limit(limit)
     .populate('cuenta', 'nombre')
     .lean();
@@ -266,9 +280,10 @@ export async function listarIdsRevertidos(): Promise<Set<string>> {
 }
 
 // ---------- Ledger de una cuenta (ASC, para saldo corriente) ----------
+// Orden por fecha de CONSUMO, no de captura — ver comentario en el modelo.
 export async function listarMovimientosCuenta(cuentaId: string) {
   await dbConnect();
   return MovimientoModel.find({ cuenta: cuentaId })
-    .sort({ fecha: 1 })
+    .sort({ fechaConsumo: 1 })
     .lean();
 }

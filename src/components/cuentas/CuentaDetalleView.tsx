@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { formatMXN, toCentavos } from "@/lib/money";
+import { inputDesdeFechaLocal } from "@/lib/fecha";
 import { Combobox } from "@/components/ui/Combobox";
 
 interface CuentaInfo {
@@ -19,7 +20,8 @@ interface ArticuloOpt { id: string; nombre: string; precio: number }
 
 interface LedgerRow {
   id: string;
-  fecha: string;
+  fechaConsumo: string;
+  fechaCaptura: string;
   tipo: "cargo" | "abono";
   monto: number;
   saldoCorriente: number;
@@ -61,6 +63,7 @@ function VentaRapidaForm({
   const [articuloId, setArticuloId] = useState("");
   const [cantidad, setCantidad] = useState(1);
   const [lineas, setLineas] = useState<{ articuloId: string; cantidad: number }[]>([]);
+  const [fechaConsumo, setFechaConsumo] = useState(() => inputDesdeFechaLocal(new Date()));
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,7 +99,7 @@ function VentaRapidaForm({
       const res = await fetch("/api/movimientos/venta", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cuentaId, lineas }),
+        body: JSON.stringify({ cuentaId, lineas, fechaConsumo }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error ?? "No se pudo registrar");
@@ -112,6 +115,17 @@ function VentaRapidaForm({
 
   return (
     <div className="rounded-xl border border-line bg-white p-5">
+      <div className="mb-4">
+        <Field label="Fecha de consumo">
+          <input
+            type="date"
+            value={fechaConsumo}
+            max={inputDesdeFechaLocal(new Date())}
+            onChange={(e) => setFechaConsumo(e.target.value)}
+            className={`${inputCls} w-44`}
+          />
+        </Field>
+      </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
         <div>
           <Field label="Producto">
@@ -330,7 +344,7 @@ export function CuentaDetalleView({
       // total frente a "Cobros del mes" del panel general).
       if (filtroTipo && (row.tipo !== filtroTipo || row.esReversa)) return false;
       if (fechaDesde || fechaHasta) {
-        const rowFecha = new Date(row.fecha).toLocaleDateString("en-CA");
+        const rowFecha = new Date(row.fechaConsumo).toLocaleDateString("en-CA");
         if (fechaDesde && rowFecha < fechaDesde) return false;
         if (fechaHasta && rowFecha > fechaHasta) return false;
       }
@@ -498,11 +512,21 @@ export function CuentaDetalleView({
                   {ledgerFiltrado.map((row) => (
                     <tr key={row.id} className="border-b border-line last:border-0">
                       <td className="whitespace-nowrap px-4 py-3 text-ink/70">
-                        {new Date(row.fecha).toLocaleDateString("es-MX", {
+                        {new Date(row.fechaConsumo).toLocaleDateString("es-MX", {
                           day: "2-digit",
                           month: "short",
                           year: "numeric",
                         })}
+                        {new Date(row.fechaConsumo).toLocaleDateString("en-CA") !==
+                          new Date(row.fechaCaptura).toLocaleDateString("en-CA") && (
+                          <span className="block text-xs text-ink/40">
+                            capturado{" "}
+                            {new Date(row.fechaCaptura).toLocaleDateString("es-MX", {
+                              day: "2-digit",
+                              month: "short",
+                            })}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-ink">
                         {descMovimiento(row)}

@@ -64,13 +64,23 @@ const movimientoSchema = new Schema(
     },
     nota: { type: String, trim: true },
 
+    // Cuándo se CAPTURÓ el movimiento en el sistema (el operador anota en
+    // papel y el admin lo teclea 1-2 días después; esta fecha es la del
+    // tecleo, no la del consumo real).
     fecha: { type: Date, default: Date.now },
+
+    // Cuándo se CONSUMIÓ realmente (solo tiene sentido para 'cargo'; para
+    // 'abono'/reversas coincide con `fecha`, no hay "consumo" que fechar).
+    // El estado de cuenta y el corte de caja se ordenan/filtran por ESTA
+    // fecha, no por `fecha`, para que coincida con lo que el padre de
+    // familia recuerda haber consumido.
+    fechaConsumo: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );
 
-// Estados de cuenta: movimientos de una cuenta ordenados por fecha.
-movimientoSchema.index({ cuenta: 1, fecha: -1 });
+// Estados de cuenta: movimientos de una cuenta ordenados por fecha de consumo.
+movimientoSchema.index({ cuenta: 1, fechaConsumo: -1 });
 
 export type Movimiento = InferSchemaType<typeof movimientoSchema>;
 

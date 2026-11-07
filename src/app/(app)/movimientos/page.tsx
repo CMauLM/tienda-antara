@@ -4,26 +4,12 @@ import { listarArticulos } from "@/services/articulos.service";
 import { listarMovimientos, listarIdsRevertidos } from "@/services/movimientos.service";
 import { MovimientosView } from "@/components/movimientos/MovimientosView";
 import { requireSesion } from "@/lib/session";
+import { fechaLocalDesdeInput, inputDesdeFechaLocal } from "@/lib/fecha";
 import type { TipoMovimiento } from "@/models/Movimiento";
 
 export const dynamic = "force-dynamic";
 
 const TIPOS_VALIDOS = new Set<TipoMovimiento>(["cargo", "abono"]);
-
-// yyyy-mm-dd en horario local (para no desfasar el filtro un día por UTC).
-function aFechaLocal(yyyyMmDd: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(yyyyMmDd);
-  if (!m) return null;
-  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-}
-
-// Inverso: Date -> "yyyy-mm-dd" en horario local, para precargar los <input type=date>.
-function aYyyyMmDd(d: Date): string {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
 
 const SECCION_LABEL: Record<string, string> = {
   maternal: "Maternal",
@@ -62,8 +48,8 @@ export default async function MovimientosPage({
   // Si no se especifica NINGUNO de los dos, el default es "mes actual" — así
   // la vista de entrada sigue siendo rápida y enfocada; un rango explícito
   // (aunque sea de hace meses) no se acota.
-  const desdeParam = typeof sp.desde === "string" ? aFechaLocal(sp.desde) : null;
-  const hastaParam = typeof sp.hasta === "string" ? aFechaLocal(sp.hasta) : null;
+  const desdeParam = typeof sp.desde === "string" ? fechaLocalDesdeInput(sp.desde) : null;
+  const hastaParam = typeof sp.hasta === "string" ? fechaLocalDesdeInput(sp.hasta) : null;
   const sinFiltroFecha = !desdeParam && !hastaParam;
 
   const ahora = new Date();
@@ -96,7 +82,8 @@ export default async function MovimientosPage({
     const cuenta = m.cuenta as unknown as { nombre?: string } | null;
     return {
       id: String(m._id),
-      fecha: new Date(m.fecha as Date).toISOString(),
+      fechaConsumo: new Date((m.fechaConsumo ?? m.fecha) as Date).toISOString(),
+      fechaCaptura: new Date(m.fecha as Date).toISOString(),
       cuentaNombre: cuenta?.nombre ?? "—",
       tipo: m.tipo as "cargo" | "abono",
       monto: m.monto,
@@ -117,9 +104,9 @@ export default async function MovimientosPage({
         movimientos={movimientos}
         filtroInicial={{
           tipo: tipoParam ?? "",
-          desde: aYyyyMmDd(desde ?? inicioMes),
+          desde: inputDesdeFechaLocal(desde ?? inicioMes),
           desdeEsDefault: !desdeParam,
-          hasta: hastaParam ? aYyyyMmDd(hastaParam) : "",
+          hasta: hastaParam ? inputDesdeFechaLocal(hastaParam) : "",
         }}
       />
     </>

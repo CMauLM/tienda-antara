@@ -10,6 +10,13 @@ export const registrarVentaSchema = z.object({
       })
     )
     .min(1, "Agrega al menos un producto"),
+  // "yyyy-mm-dd" del <input type="date">; se valida como string (no
+  // z.coerce.date()) para parsearlo luego en horario LOCAL y no desfasar
+  // el día por UTC. Opcional: si no viene, el día de consumo es hoy.
+  fechaConsumo: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha de consumo inválida")
+    .optional(),
   nota: z.string().trim().optional(),
 });
 

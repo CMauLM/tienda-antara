@@ -32,7 +32,8 @@ export async function obtenerDashboard(): Promise<DashboardData> {
       { $group: { _id: null, total: { $sum: "$saldoActual" } } },
     ]) as Promise<{ total: number }[]>,
 
-    // Cobros del mes (abonos originales, sin reversas)
+    // Cobros del mes (abonos originales, sin reversas). Un pago no tiene
+    // "fecha de consumo" — se queda en `fecha` (cuándo se recibió).
     MovimientoModel.aggregate([
       {
         $match: {
@@ -44,13 +45,15 @@ export async function obtenerDashboard(): Promise<DashboardData> {
       { $group: { _id: null, total: { $sum: "$monto" } } },
     ]) as Promise<{ total: number }[]>,
 
-    // Ventas del mes (cargos originales, sin reversas)
+    // Ventas del mes (cargos originales, sin reversas). Por fecha de
+    // CONSUMO, no de captura, para que coincida con el mes real en que se
+    // comió — no con cuándo el admin tecleó el papel.
     MovimientoModel.aggregate([
       {
         $match: {
           tipo: "cargo",
           reversaDe: null,
-          fecha: { $gte: inicioMes, $lt: inicioMesSig },
+          fechaConsumo: { $gte: inicioMes, $lt: inicioMesSig },
         },
       },
       { $group: { _id: null, total: { $sum: "$monto" } } },
