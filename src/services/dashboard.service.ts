@@ -14,9 +14,13 @@ export interface DashboardData {
 export async function obtenerDashboard(): Promise<DashboardData> {
   await dbConnect();
 
+  // Date.UTC, no hora local del servidor — ver comentario en
+  // fechaLocalDesdeInput (src/lib/fecha.ts): fechaConsumo se codifica
+  // siempre a medianoche UTC, así que el límite de mes debe quedar en esa
+  // misma referencia para que el corte no se desfase según dónde corra.
   const ahora = new Date();
-  const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-  const inicioMesSig = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 1);
+  const inicioMes = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), 1));
+  const inicioMesSig = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth() + 1, 1));
 
   const [
     adeudoAgg,

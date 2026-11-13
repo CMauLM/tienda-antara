@@ -240,19 +240,21 @@ export async function listarMovimientos(
     metodoPago?: MetodoPago;
     desde?: Date;
     hasta?: Date;
+    // Sobre qué fecha aplica el rango desde/hasta. Default 'fechaConsumo'
+    // (lo que realmente se consumió); 'fecha' permite al admin reconciliar
+    // contra lo que capturó en un día dado, en vez de lo consumido.
+    campoFecha?: "fechaConsumo" | "fecha";
     limit?: number;
   } = {}
 ) {
   await dbConnect();
-  const { cuentaId, tipo, metodoPago, desde, hasta, limit = 5000 } = opts;
+  const { cuentaId, tipo, metodoPago, desde, hasta, campoFecha = "fechaConsumo", limit = 5000 } = opts;
   const filtro: Record<string, unknown> = {};
   if (cuentaId) filtro.cuenta = cuentaId;
   if (tipo) filtro.tipo = tipo;
   if (metodoPago) filtro.metodoPago = metodoPago;
   if (desde || hasta) {
-    // Por fecha de CONSUMO, no de captura — un corte de caja de un rango
-    // de fechas debe reflejar lo que realmente se consumió en ese rango.
-    filtro.fechaConsumo = {
+    filtro[campoFecha] = {
       ...(desde ? { $gte: desde } : {}),
       ...(hasta ? { $lt: hasta } : {}),
     };

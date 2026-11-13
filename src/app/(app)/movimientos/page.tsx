@@ -4,7 +4,7 @@ import { listarArticulos } from "@/services/articulos.service";
 import { listarMovimientos, listarIdsRevertidos } from "@/services/movimientos.service";
 import { MovimientosView } from "@/components/movimientos/MovimientosView";
 import { requireSesion } from "@/lib/session";
-import { fechaLocalDesdeInput, inputDesdeFechaLocal } from "@/lib/fecha";
+import { fechaLocalDesdeInput, inputDesdeFechaUTC } from "@/lib/fecha";
 import type { TipoMovimiento } from "@/models/Movimiento";
 
 export const dynamic = "force-dynamic";
@@ -52,18 +52,31 @@ export default async function MovimientosPage({
   const hastaParam = typeof sp.hasta === "string" ? fechaLocalDesdeInput(sp.hasta) : null;
   const sinFiltroFecha = !desdeParam && !hastaParam;
 
+  // Sobre qué fecha aplica el rango: consumo (default) o captura — para que
+  // el admin pueda reconciliar lo tecleado un día dado contra el cuaderno.
+  const porFecha = sp.porFecha === "captura" ? "captura" : "consumo";
+
+  // Construidos con getters/Date.UTC, no con hora local del servidor — ver
+  // comentario en fechaLocalDesdeInput. inicioMes y el +1 día de "hasta"
+  // deben quedar codificados igual que desdeParam/hastaParam (medianoche
+  // UTC) para que el rango sea el mismo sin importar en qué huso corra.
   const ahora = new Date();
-  const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+  const inicioMes = new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), 1));
   const desde = desdeParam ?? (sinFiltroFecha ? inicioMes : undefined);
   // "hasta" en la UI es el día seleccionado completo (inclusivo) -> +1 día para el $lt de Mongo.
   const hasta = hastaParam
-    ? new Date(hastaParam.getFullYear(), hastaParam.getMonth(), hastaParam.getDate() + 1)
+    ? new Date(Date.UTC(hastaParam.getUTCFullYear(), hastaParam.getUTCMonth(), hastaParam.getUTCDate() + 1))
     : undefined;
 
   const [cuentasDocs, articulosDocs, movimientosDocs, idsRevertidos] = await Promise.all([
     listarCuentas(),
     listarArticulos(),
-    listarMovimientos({ tipo: tipoEfectivo, desde, hasta }),
+    listarMovimientos({
+      tipo: tipoEfectivo,
+      desde,
+      hasta,
+      campoFecha: porFecha === "captura" ? "fecha" : "fechaConsumo",
+    }),
     listarIdsRevertidos(),
   ]);
 
@@ -104,9 +117,10 @@ export default async function MovimientosPage({
         movimientos={movimientos}
         filtroInicial={{
           tipo: tipoParam ?? "",
-          desde: inputDesdeFechaLocal(desde ?? inicioMes),
+          desde: inputDesdeFechaUTC(desde ?? inicioMes),
           desdeEsDefault: !desdeParam,
-          hasta: hastaParam ? inputDesdeFechaLocal(hastaParam) : "",
+          hasta: hastaParam ? inputDesdeFechaUTC(hastaParam) : "",
+          porFecha,
         }}
       />
     </>

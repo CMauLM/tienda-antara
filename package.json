@@ -9,7 +9,8 @@
     "lint": "eslint",
     "importar-alumnos": "node scripts/importar-alumnos.mjs",
     "reset-password": "node scripts/reset-password.mjs",
-    "backfill-fecha-consumo": "node scripts/backfill-fecha-consumo.mjs"
+    "backfill-fecha-consumo": "node scripts/backfill-fecha-consumo.mjs",
+    "corrige-fecha-consumo-legado": "node scripts/corrige-fecha-consumo-legado.mjs"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",

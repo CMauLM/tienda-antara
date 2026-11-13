@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { formatMXN, toCentavos } from "@/lib/money";
-import { inputDesdeFechaLocal } from "@/lib/fecha";
+import { inputDesdeFechaLocal, inputDesdeFechaUTC } from "@/lib/fecha";
 import { Combobox } from "@/components/ui/Combobox";
 
 interface CuentaInfo {
@@ -333,8 +333,16 @@ export function CuentaDetalleView({
   const [filtroTipo, setFiltroTipo] = useState("");
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
+  // Sobre qué fecha aplica el rango desde/hasta — ver comentario análogo en
+  // movimientos.service.ts / MovimientosView.
+  const [criterioFecha, setCriterioFecha] = useState<"consumo" | "captura">("consumo");
+  // Orden de la columna Fecha. El ledger ya viene ASC (cronológico, para que
+  // el saldo corriente se lea como un acumulado) — invertir el arreglo para
+  // mostrarlo DESC no recalcula saldoCorriente, solo cambia el orden visual;
+  // cada fila ya trae su saldo correcto desde el servidor.
+  const [ordenAsc, setOrdenAsc] = useState(true);
 
-  const hayFiltros = filtroTipo || fechaDesde || fechaHasta;
+  const hayFiltros = filtroTipo || fechaDesde || fechaHasta || criterioFecha !== "consumo";
 
   const ledgerFiltrado = useMemo(() => {
     return ledger.filter((row) => {
@@ -344,18 +352,31 @@ export function CuentaDetalleView({
       // total frente a "Cobros del mes" del panel general).
       if (filtroTipo && (row.tipo !== filtroTipo || row.esReversa)) return false;
       if (fechaDesde || fechaHasta) {
-        const rowFecha = new Date(row.fechaConsumo).toLocaleDateString("en-CA");
+        // fechaConsumo es un día-calendario puro, codificado a medianoche
+        // UTC — se lee con getters UTC (inputDesdeFechaUTC). fechaCaptura
+        // es un instante real; su "día" es el que vivió el admin, por eso
+        // se lee con la hora local del navegador.
+        const rowFecha =
+          criterioFecha === "captura"
+            ? new Date(row.fechaCaptura).toLocaleDateString("en-CA")
+            : inputDesdeFechaUTC(new Date(row.fechaConsumo));
         if (fechaDesde && rowFecha < fechaDesde) return false;
         if (fechaHasta && rowFecha > fechaHasta) return false;
       }
       return true;
     });
-  }, [ledger, filtroTipo, fechaDesde, fechaHasta]);
+  }, [ledger, filtroTipo, fechaDesde, fechaHasta, criterioFecha]);
+
+  const ledgerOrdenado = useMemo(() => {
+    if (ordenAsc) return ledgerFiltrado;
+    return [...ledgerFiltrado].reverse();
+  }, [ledgerFiltrado, ordenAsc]);
 
   function limpiarFiltros() {
     setFiltroTipo("");
     setFechaDesde("");
     setFechaHasta("");
+    setCriterioFecha("consumo");
   }
 
   function togglePanel(p: "venta" | "abono") {
@@ -464,6 +485,15 @@ export function CuentaDetalleView({
               <option value="cargo">Solo cargos</option>
               <option value="abono">Solo abonos</option>
             </select>
+            <select
+              value={criterioFecha}
+              onChange={(e) => setCriterioFecha(e.target.value as "consumo" | "captura")}
+              title="El rango de fechas aplica sobre…"
+              className={filterCls}
+            >
+              <option value="consumo">Por fecha de consumo</option>
+              <option value="captura">Por fecha de captura</option>
+            </select>
             <input
               type="date"
               value={fechaDesde}
@@ -501,7 +531,16 @@ export function CuentaDetalleView({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink/50">
-                    <th className="px-4 py-3 font-medium">Fecha</th>
+                    <th className="px-4 py-3 font-medium">
+                      <button
+                        type="button"
+                        onClick={() => setOrdenAsc((v) => !v)}
+                        className="inline-flex cursor-pointer items-center gap-1 uppercase tracking-wide text-ink/50 hover:text-ink"
+                      >
+                        Fecha
+                        <span aria-hidden>{ordenAsc ? "▲" : "▼"}</span>
+                      </button>
+                    </th>
                     <th className="px-4 py-3 font-medium">Concepto</th>
                     <th className="px-4 py-3 text-right font-medium">Cargo</th>
                     <th className="px-4 py-3 text-right font-medium">Abono</th>
@@ -509,15 +548,16 @@ export function CuentaDetalleView({
                   </tr>
                 </thead>
                 <tbody>
-                  {ledgerFiltrado.map((row) => (
+                  {ledgerOrdenado.map((row) => (
                     <tr key={row.id} className="border-b border-line last:border-0">
                       <td className="whitespace-nowrap px-4 py-3 text-ink/70">
                         {new Date(row.fechaConsumo).toLocaleDateString("es-MX", {
+                          timeZone: "UTC",
                           day: "2-digit",
                           month: "short",
                           year: "numeric",
                         })}
-                        {new Date(row.fechaConsumo).toLocaleDateString("en-CA") !==
+                        {inputDesdeFechaUTC(new Date(row.fechaConsumo)) !==
                           new Date(row.fechaCaptura).toLocaleDateString("en-CA") && (
                           <span className="block text-xs text-ink/40">
                             capturado{" "}

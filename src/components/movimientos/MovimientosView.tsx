@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { formatMXN, toCentavos } from "@/lib/money";
-import { inputDesdeFechaLocal } from "@/lib/fecha";
+import { inputDesdeFechaLocal, inputDesdeFechaUTC } from "@/lib/fecha";
 import { Combobox } from "@/components/ui/Combobox";
 
 interface CuentaOpt { id: string; nombre: string; detalle?: string }
@@ -20,7 +20,13 @@ interface MovRow {
   yaRevertido: boolean;
   nota: string | null;
 }
-interface FiltroInicial { tipo: string; desde: string; desdeEsDefault: boolean; hasta: string }
+interface FiltroInicial {
+  tipo: string;
+  desde: string;
+  desdeEsDefault: boolean;
+  hasta: string;
+  porFecha: "consumo" | "captura";
+}
 
 const METODO_LABEL: Record<string, string> = {
   efectivo: "Efectivo",
@@ -390,12 +396,21 @@ function MovimientosList({
   // Búsqueda y método de pago solo acotan lo ya traído, sin ir al servidor.
   const [busqueda, setBusqueda] = useState("");
   const [filtroMetodo, setFiltroMetodo] = useState("");
+  // Orden de la columna Fecha, sobre los movimientos ya traídos (sin ir al
+  // servidor). false = más reciente primero, igual que el orden que ya
+  // trae el servidor por default.
+  const [ordenAsc, setOrdenAsc] = useState(false);
 
   const puedeVerCargos = rol !== "abonador";
   const puedeVerAbonos = rol !== "vendedor";
 
   const hayFiltros =
-    busqueda || filtroMetodo || filtroInicial.tipo || filtroInicial.hasta || !filtroInicial.desdeEsDefault;
+    busqueda ||
+    filtroMetodo ||
+    filtroInicial.tipo ||
+    filtroInicial.hasta ||
+    !filtroInicial.desdeEsDefault ||
+    filtroInicial.porFecha !== "consumo";
 
   function actualizarUrl(cambios: Partial<FiltroInicial>) {
     const nuevo = { ...filtroInicial, ...cambios };
@@ -403,6 +418,7 @@ function MovimientosList({
     if (nuevo.tipo) params.set("tipo", nuevo.tipo);
     if (nuevo.desde) params.set("desde", nuevo.desde);
     if (nuevo.hasta) params.set("hasta", nuevo.hasta);
+    if (nuevo.porFecha !== "consumo") params.set("porFecha", nuevo.porFecha);
     const qs = params.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname);
   }
@@ -420,6 +436,15 @@ function MovimientosList({
       return true;
     });
   }, [movimientos, busqueda, filtroInicial.tipo, filtroMetodo]);
+
+  const ordenadas = useMemo(() => {
+    const copia = [...filtradas];
+    copia.sort((a, b) => {
+      const diff = new Date(a.fechaConsumo).getTime() - new Date(b.fechaConsumo).getTime();
+      return ordenAsc ? diff : -diff;
+    });
+    return copia;
+  }, [filtradas, ordenAsc]);
 
   // Resumen dinámico (corte de caja): neto de reversas — ni las reversas
   // mismas ni los movimientos que ya fueron anulados cuentan aquí.
@@ -521,6 +546,15 @@ function MovimientosList({
             <option value="otro">Otro</option>
           </select>
         )}
+        <select
+          value={filtroInicial.porFecha}
+          onChange={(e) => actualizarUrl({ porFecha: e.target.value as "consumo" | "captura" })}
+          title="El rango de fechas aplica sobre…"
+          className={filterCls}
+        >
+          <option value="consumo">Por fecha de consumo</option>
+          <option value="captura">Por fecha de captura</option>
+        </select>
         <input
           type="date"
           value={filtroInicial.desde}
@@ -591,7 +625,16 @@ function MovimientosList({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink/50">
-                <th className="px-4 py-3 font-medium">Fecha</th>
+                <th className="px-4 py-3 font-medium">
+                  <button
+                    type="button"
+                    onClick={() => setOrdenAsc((v) => !v)}
+                    className="inline-flex cursor-pointer items-center gap-1 uppercase tracking-wide text-ink/50 hover:text-ink"
+                  >
+                    Fecha
+                    <span aria-hidden>{ordenAsc ? "▲" : "▼"}</span>
+                  </button>
+                </th>
                 <th className="px-4 py-3 font-medium">Cuenta</th>
                 <th className="px-4 py-3 font-medium">Tipo</th>
                 <th className="px-4 py-3 font-medium">Método</th>
@@ -600,17 +643,18 @@ function MovimientosList({
               </tr>
             </thead>
             <tbody>
-              {filtradas.map((m) => {
+              {ordenadas.map((m) => {
                 const esCargo = m.tipo === "cargo";
                 const puedeAnular = permiteAnular && !m.esReversa && !m.yaRevertido;
                 return (
                   <tr key={m.id} className="border-b border-line last:border-0">
                     <td className="px-4 py-3 text-ink/70">
                       {new Date(m.fechaConsumo).toLocaleDateString("es-MX", {
+                        timeZone: "UTC",
                         day: "2-digit",
                         month: "short",
                       })}
-                      {new Date(m.fechaConsumo).toLocaleDateString("en-CA") !==
+                      {inputDesdeFechaUTC(new Date(m.fechaConsumo)) !==
                         new Date(m.fechaCaptura).toLocaleDateString("en-CA") && (
                         <span className="block text-xs text-ink/40">
                           capturado{" "}
