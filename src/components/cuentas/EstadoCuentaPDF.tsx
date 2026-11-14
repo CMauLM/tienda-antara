@@ -126,7 +126,7 @@ function colorSaldo(saldo: number) {
   return "#1a1c2e66";
 }
 
-function descripcionRango(filtro: FiltroLedger): string {
+function descripcionRango(filtro: FiltroLedger, historialCompleto: boolean): string {
   const partes: string[] = [];
   if (filtro.fechaDesde && filtro.fechaHasta) {
     partes.push(`Del ${fmtRangoDia.format(new Date(`${filtro.fechaDesde}T00:00:00Z`))} al ${fmtRangoDia.format(new Date(`${filtro.fechaHasta}T00:00:00Z`))}`);
@@ -135,7 +135,10 @@ function descripcionRango(filtro: FiltroLedger): string {
   } else if (filtro.fechaHasta) {
     partes.push(`Hasta ${fmtRangoDia.format(new Date(`${filtro.fechaHasta}T00:00:00Z`))}`);
   } else {
-    partes.push("Historial completo");
+    // Por default se omite lo ya saldado (ver recortarDesdeUltimoCero en
+    // src/lib/ledger.ts) — el padre que ya pagó todo no necesita ver
+    // compras de hace meses, solo lo que sigue pendiente ahora.
+    partes.push(historialCompleto ? "Historial completo" : "Saldo pendiente (sin movimientos ya saldados)");
   }
   if (filtro.criterioFecha === "captura") partes.push("filtrado por fecha de captura");
   if (filtro.tipo === "cargo") partes.push("solo cargos (ventas)");
@@ -185,10 +188,12 @@ export function EstadoCuentaPDF({
   cuenta,
   ledger,
   filtro,
+  historialCompleto,
 }: {
   cuenta: { nombre: string; tipo: string; grado: string | null; grupo: string | null; saldoActual: number };
   ledger: LedgerRow[];
   filtro: FiltroLedger;
+  historialCompleto: boolean;
 }) {
   const totalCargos = ledger.reduce((s, r) => (r.tipo === "cargo" && !r.esReversa ? s + r.monto : s), 0);
   const totalAbonos = ledger.reduce((s, r) => (r.tipo === "abono" && !r.esReversa ? s + r.monto : s), 0);
@@ -211,7 +216,7 @@ export function EstadoCuentaPDF({
 
         <Text style={styles.nombreCuenta}>{cuenta.nombre}</Text>
         <Text style={styles.detalleCuenta}>{detalleCuenta}</Text>
-        <Text style={styles.rangoCubierto}>{descripcionRango(filtro)}</Text>
+        <Text style={styles.rangoCubierto}>{descripcionRango(filtro, historialCompleto)}</Text>
 
         <View style={styles.saldoBox}>
           <View>

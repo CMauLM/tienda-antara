@@ -3,7 +3,12 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { requireRolApi, ApiAuthError } from "@/lib/session";
 import { obtenerCuenta } from "@/services/cuentas.service";
 import { listarMovimientosCuenta } from "@/services/movimientos.service";
-import { construirLedger, filtrarYOrdenarLedger, type FiltroLedger } from "@/lib/ledger";
+import {
+  construirLedger,
+  filtrarYOrdenarLedger,
+  recortarDesdeUltimoCero,
+  type FiltroLedger,
+} from "@/lib/ledger";
 import { EstadoCuentaPDF } from "@/components/cuentas/EstadoCuentaPDF";
 
 // @react-pdf/renderer necesita Node (no Edge).
@@ -28,6 +33,11 @@ export async function GET(
 
     // Mismos query params que construye CuentaDetalleView — el PDF
     // descarga exactamente el recorte que el admin tenía en pantalla.
+    const historialCompleto = sp.get("historial") === "completo";
+    const ledgerBase = historialCompleto
+      ? ledgerCompleto
+      : recortarDesdeUltimoCero(ledgerCompleto);
+
     const tipoParam = sp.get("tipo");
     const filtro: FiltroLedger = {
       tipo: tipoParam === "cargo" || tipoParam === "abono" ? tipoParam : "",
@@ -36,7 +46,7 @@ export async function GET(
       criterioFecha: sp.get("criterio") === "captura" ? "captura" : "consumo",
       ordenAsc: sp.get("orden") !== "desc",
     };
-    const ledger = filtrarYOrdenarLedger(ledgerCompleto, filtro);
+    const ledger = filtrarYOrdenarLedger(ledgerBase, filtro);
 
     const cuenta = {
       nombre: cuentaDoc.nombre,
@@ -47,7 +57,12 @@ export async function GET(
     };
 
     const buffer = await renderToBuffer(
-      <EstadoCuentaPDF cuenta={cuenta} ledger={ledger} filtro={filtro} />
+      <EstadoCuentaPDF
+        cuenta={cuenta}
+        ledger={ledger}
+        filtro={filtro}
+        historialCompleto={historialCompleto}
+      />
     );
 
     const nombreArchivo = `estado-cuenta-${cuenta.nombre.replace(/[^a-zA-Z0-9]+/g, "-")}.pdf`;

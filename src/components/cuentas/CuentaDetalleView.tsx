@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { formatMXN, toCentavos } from "@/lib/money";
 import { inputDesdeFechaLocal, inputDesdeFechaUTC } from "@/lib/fecha";
-import { filtrarYOrdenarLedger, type LedgerRow } from "@/lib/ledger";
+import { filtrarYOrdenarLedger, recortarDesdeUltimoCero, type LedgerRow } from "@/lib/ledger";
 import { Combobox } from "@/components/ui/Combobox";
 
 interface CuentaInfo {
@@ -329,20 +329,27 @@ export function CuentaDetalleView({
   // mostrarlo DESC no recalcula saldoCorriente, solo cambia el orden visual;
   // cada fila ya trae su saldo correcto desde el servidor.
   const [ordenAsc, setOrdenAsc] = useState(true);
+  // Por default se oculta el historial ya saldado (ver recortarDesdeUltimoCero):
+  // un padre que ya pagó todo no debería seguir viendo compras de hace meses.
+  const [verTodo, setVerTodo] = useState(false);
 
-  const hayFiltros = filtroTipo || fechaDesde || fechaHasta || criterioFecha !== "consumo";
+  const hayFiltros = filtroTipo || fechaDesde || fechaHasta || criterioFecha !== "consumo" || verTodo;
+
+  const ledgerRecortado = useMemo(() => recortarDesdeUltimoCero(ledger), [ledger]);
+  const haySaldoCeroPrevio = ledgerRecortado.length < ledger.length;
+  const ledgerBase = verTodo ? ledger : ledgerRecortado;
 
   // Mismo filtro/orden que usará el PDF — ver src/lib/ledger.ts.
   const ledgerOrdenado = useMemo(
     () =>
-      filtrarYOrdenarLedger(ledger, {
+      filtrarYOrdenarLedger(ledgerBase, {
         tipo: filtroTipo as "cargo" | "abono" | "",
         fechaDesde,
         fechaHasta,
         criterioFecha,
         ordenAsc,
       }),
-    [ledger, filtroTipo, fechaDesde, fechaHasta, criterioFecha, ordenAsc]
+    [ledgerBase, filtroTipo, fechaDesde, fechaHasta, criterioFecha, ordenAsc]
   );
 
   // URL del PDF con exactamente el mismo recorte que se ve en pantalla.
@@ -353,15 +360,17 @@ export function CuentaDetalleView({
     if (fechaHasta) params.set("hasta", fechaHasta);
     if (criterioFecha !== "consumo") params.set("criterio", criterioFecha);
     if (!ordenAsc) params.set("orden", "desc");
+    if (verTodo) params.set("historial", "completo");
     const qs = params.toString();
     return `/api/cuentas/${cuenta.id}/estado-cuenta-pdf${qs ? `?${qs}` : ""}`;
-  }, [cuenta.id, filtroTipo, fechaDesde, fechaHasta, criterioFecha, ordenAsc]);
+  }, [cuenta.id, filtroTipo, fechaDesde, fechaHasta, criterioFecha, ordenAsc, verTodo]);
 
   function limpiarFiltros() {
     setFiltroTipo("");
     setFechaDesde("");
     setFechaHasta("");
     setCriterioFecha("consumo");
+    setVerTodo(false);
   }
 
   function togglePanel(p: "venta" | "abono") {
@@ -459,6 +468,25 @@ export function CuentaDetalleView({
         </div>
       ) : (
         <>
+          {haySaldoCeroPrevio && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-paper px-4 py-2 text-xs text-ink/60">
+              <span>
+                {verTodo
+                  ? "Mostrando el historial completo de la cuenta."
+                  : `Mostrando desde que la cuenta quedó en $0.00 por última vez (${new Date(
+                      ledgerRecortado[0].fechaConsumo
+                    ).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })}).`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setVerTodo((v) => !v)}
+                className="cursor-pointer font-medium text-antara hover:underline"
+              >
+                {verTodo ? "Ver solo lo pendiente" : "Ver historial completo"}
+              </button>
+            </div>
+          )}
+
           {/* Barra de filtros del ledger */}
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <select

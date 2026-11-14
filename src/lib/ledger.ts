@@ -44,6 +44,24 @@ export function construirLedger(movimientosDocs: MovimientoLean[]): LedgerRow[] 
   return ledger;
 }
 
+// La cuenta queda "saldada" cuando su saldo corriente toca exactamente
+// $0 — ahí termina un ciclo cerrado. Todo lo anterior a la ÚLTIMA vez que
+// eso pasó es historial ya resuelto: por default no debería seguir
+// apareciendo en el estado de cuenta ni en el PDF que se le entrega a un
+// padre dudoso. ledger debe venir en orden cronológico ASC (como lo da
+// construirLedger), y esto se aplica ANTES de filtrarYOrdenarLedger.
+//
+// OJO: esto es distinto de saber "este cargo específico ya se pagó" —
+// eso requeriría aplicación de pagos por cargo (Cargo.montoAplicado /
+// Aplicacion, diseñado en la Fase 3 — feat/cargos, sin mergear). Esto
+// solo corta en la última vez que TODA la cuenta llegó a cero.
+export function recortarDesdeUltimoCero(ledger: LedgerRow[]): LedgerRow[] {
+  for (let i = ledger.length - 1; i >= 0; i--) {
+    if (ledger[i].saldoCorriente === 0) return ledger.slice(i);
+  }
+  return ledger;
+}
+
 export interface FiltroLedger {
   tipo?: "cargo" | "abono" | "";
   fechaDesde?: string; // "yyyy-mm-dd"
