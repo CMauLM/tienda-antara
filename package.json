@@ -13,6 +13,7 @@
     "corrige-fecha-consumo-legado": "node scripts/corrige-fecha-consumo-legado.mjs"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.9.0",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",
     "mongoose": "^9.7.1",

@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { formatMXN, toCentavos } from "@/lib/money";
 import { inputDesdeFechaLocal, inputDesdeFechaUTC } from "@/lib/fecha";
+import { filtrarYOrdenarLedger, type LedgerRow } from "@/lib/ledger";
 import { Combobox } from "@/components/ui/Combobox";
 
 interface CuentaInfo {
@@ -17,19 +18,6 @@ interface CuentaInfo {
 }
 
 interface ArticuloOpt { id: string; nombre: string; precio: number }
-
-interface LedgerRow {
-  id: string;
-  fechaConsumo: string;
-  fechaCaptura: string;
-  tipo: "cargo" | "abono";
-  monto: number;
-  saldoCorriente: number;
-  esReversa: boolean;
-  lineas: { nombre: string; cantidad: number; precioUnitario: number }[];
-  metodoPago: string | null;
-  nota: string | null;
-}
 
 const inputCls =
   "w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-antara";
@@ -344,33 +332,30 @@ export function CuentaDetalleView({
 
   const hayFiltros = filtroTipo || fechaDesde || fechaHasta || criterioFecha !== "consumo";
 
-  const ledgerFiltrado = useMemo(() => {
-    return ledger.filter((row) => {
-      // "Solo abonos"/"Solo cargos" deben mostrar movimientos reales, no
-      // reversas (una reversa de venta queda registrada como tipo "abono"
-      // para efectos de saldo, pero no es un pago — mezclarla aquí infla el
-      // total frente a "Cobros del mes" del panel general).
-      if (filtroTipo && (row.tipo !== filtroTipo || row.esReversa)) return false;
-      if (fechaDesde || fechaHasta) {
-        // fechaConsumo es un día-calendario puro, codificado a medianoche
-        // UTC — se lee con getters UTC (inputDesdeFechaUTC). fechaCaptura
-        // es un instante real; su "día" es el que vivió el admin, por eso
-        // se lee con la hora local del navegador.
-        const rowFecha =
-          criterioFecha === "captura"
-            ? new Date(row.fechaCaptura).toLocaleDateString("en-CA")
-            : inputDesdeFechaUTC(new Date(row.fechaConsumo));
-        if (fechaDesde && rowFecha < fechaDesde) return false;
-        if (fechaHasta && rowFecha > fechaHasta) return false;
-      }
-      return true;
-    });
-  }, [ledger, filtroTipo, fechaDesde, fechaHasta, criterioFecha]);
+  // Mismo filtro/orden que usará el PDF — ver src/lib/ledger.ts.
+  const ledgerOrdenado = useMemo(
+    () =>
+      filtrarYOrdenarLedger(ledger, {
+        tipo: filtroTipo as "cargo" | "abono" | "",
+        fechaDesde,
+        fechaHasta,
+        criterioFecha,
+        ordenAsc,
+      }),
+    [ledger, filtroTipo, fechaDesde, fechaHasta, criterioFecha, ordenAsc]
+  );
 
-  const ledgerOrdenado = useMemo(() => {
-    if (ordenAsc) return ledgerFiltrado;
-    return [...ledgerFiltrado].reverse();
-  }, [ledgerFiltrado, ordenAsc]);
+  // URL del PDF con exactamente el mismo recorte que se ve en pantalla.
+  const urlPdf = useMemo(() => {
+    const params = new URLSearchParams();
+    if (filtroTipo) params.set("tipo", filtroTipo);
+    if (fechaDesde) params.set("desde", fechaDesde);
+    if (fechaHasta) params.set("hasta", fechaHasta);
+    if (criterioFecha !== "consumo") params.set("criterio", criterioFecha);
+    if (!ordenAsc) params.set("orden", "desc");
+    const qs = params.toString();
+    return `/api/cuentas/${cuenta.id}/estado-cuenta-pdf${qs ? `?${qs}` : ""}`;
+  }, [cuenta.id, filtroTipo, fechaDesde, fechaHasta, criterioFecha, ordenAsc]);
 
   function limpiarFiltros() {
     setFiltroTipo("");
@@ -517,12 +502,19 @@ export function CuentaDetalleView({
                 Limpiar
               </button>
             )}
-            <span className="ml-auto text-xs text-ink/40">
-              {ledgerFiltrado.length} de {ledger.length}
+            <a
+              href={urlPdf}
+              download
+              className="ml-auto cursor-pointer rounded-lg border border-antara px-3 py-1.5 text-sm font-medium text-antara transition-colors hover:bg-antara/5"
+            >
+              Descargar PDF
+            </a>
+            <span className="text-xs text-ink/40">
+              {ledgerOrdenado.length} de {ledger.length}
             </span>
           </div>
 
-          {ledgerFiltrado.length === 0 ? (
+          {ledgerOrdenado.length === 0 ? (
             <div className="rounded-xl border border-dashed border-line bg-white p-10 text-center">
               <p className="text-sm text-ink/60">Sin resultados para los filtros aplicados.</p>
             </div>

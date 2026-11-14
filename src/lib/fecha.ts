@@ -34,3 +34,17 @@ export function inputDesdeFechaLocal(d: Date): string {
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
+
+// Zona horaria real de la tienda — para código que corre tanto en el
+// navegador (siempre México) como en el servidor (Netlify, UTC) y necesita
+// el mismo resultado en los dos: nunca la TZ "ambiente" de quien ejecute,
+// siempre México explícito.
+export const ZONA_TIENDA = "America/Mexico_City";
+
+// El día calendario (yyyy-mm-dd) que un instante real representa en
+// México, sin importar en qué TZ corra el proceso. Para campos que SÍ son
+// un instante con hora (fechaCaptura/`fecha`) pero de los que se necesita
+// "qué día fue, en México" — p. ej. comparar contra un filtro de fecha.
+export function diaEnZonaTienda(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: ZONA_TIENDA }).format(d);
+}
